@@ -33,7 +33,7 @@ Projeto acadêmico desenvolvido em Java com Spring Boot, cobrindo os requisitos 
 **Pré-requisitos:** Java 21 e Maven (ou use o wrapper `./mvnw` incluso no projeto).
 
 ```bash
-git clone <url-do-repositorio>
+git clone https://github.com/cofeezz/MusicTrackerApi.git
 cd MusicTrackerApi
 ./mvnw spring-boot:run
 ```
