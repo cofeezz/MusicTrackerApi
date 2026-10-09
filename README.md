@@ -46,13 +46,13 @@ A aplicação sobe em `http://localhost:8080`. O banco é H2 em memória (zera o
 
 ## Paginação
 
-Todas as listagens (`GET` de coleção) são paginadas. Por padrão e no máximo, **2 itens por página**, mesmo que o cliente peça um `size` maior na URL.
+Todas as listagens (`GET` de coleção) são paginadas. Por padrão e no máximo, **10 itens por página**, mesmo que o cliente peça um `size` maior na URL.
 
 Parâmetros de query aceitos:
 
 - `page` — número da página (começa em `0`)
 
-- `size` — itens por página (limitado a 2)
+- `size` — itens por página (limitado a 10)
 
 - `sort` — campo e direção, ex: `sort=name,asc`
 
