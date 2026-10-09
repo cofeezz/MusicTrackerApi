@@ -47,7 +47,7 @@ public class OpenApi {
 
                                 - `page` — número da página, começando em `0` (padrão: `0`)
 
-                                - `size` — itens por página (padrão e **máximo: 2**, mesmo se um valor maior for enviado)
+                                - `size` — itens por página (padrão e **máximo: 10**, mesmo se um valor maior for enviado)
 
                                 - `sort` — campo e direção de ordenação, ex: `sort=name,asc`
 
