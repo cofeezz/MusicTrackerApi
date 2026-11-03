@@ -17,17 +17,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-// Filtro que aplica o rate limit (token bucket) por IP em todas as requisições.
-//
-// Ele roda ANTES do DispatcherServlet, então as exceções dele não passam pelo
-// GlobalExceptionHandler — por isso o corpo do 429 é escrito aqui mesmo, no
-// mesmo formato do APIError (timestamp, status, error, message, path).
-//
-// Cabeçalhos devolvidos em toda resposta:
-//   X-RateLimit-Limit      -> capacidade do balde (rajada máxima)
-//   X-RateLimit-Remaining  -> fichas que ainda restam
-// E, quando bloqueia (429):
-//   Retry-After            -> segundos até a próxima ficha estar disponível
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
 
@@ -49,7 +38,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
         this.refillPerSecond = refillPerSecond;
     }
 
-    // A documentação (Swagger UI e o JSON do OpenAPI) não entra na contagem
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
@@ -103,8 +91,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
-    // Faxina: de tempos em tempos descarta os baldes de clientes que já voltaram
-    // ao estado cheio, para o mapa não crescer para sempre com IPs antigos.
     private void removeIdleBucketsIfDue() {
         long now = System.nanoTime();
         long last = lastCleanup.get();
