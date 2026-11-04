@@ -4,20 +4,20 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import musictracker.Exception.FilterErrorWriter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Component
+@Order(1)
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final long CLEANUP_INTERVAL_NANOS = TimeUnit.MINUTES.toNanos(1);
@@ -63,32 +63,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         response.setHeader("Retry-After", String.valueOf(result.retryAfterSeconds()));
-        writeTooManyRequests(request, response, result.retryAfterSeconds());
-    }
-
-    private void writeTooManyRequests(HttpServletRequest request, HttpServletResponse response,
-                                      long retryAfterSeconds) throws IOException {
-        HttpStatus status = HttpStatus.TOO_MANY_REQUESTS;
-        String message = "Limite de requisições excedido. Tente novamente em "
-                + retryAfterSeconds + " segundo(s).";
-
-        String body = """
-                {"timestamp":"%s","status":%d,"error":"%s","message":"%s","path":"%s"}"""
-                .formatted(
-                        LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS),
-                        status.value(),
-                        status.name(),
-                        escapeJson(message),
-                        escapeJson(request.getRequestURI()));
-
-        response.setStatus(status.value());
-        response.setContentType("application/json");
-        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        response.getWriter().write(body);
-    }
-
-    private static String escapeJson(String value) {
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+        FilterErrorWriter.write(request, response, HttpStatus.TOO_MANY_REQUESTS,
+                "Limite de requisições excedido. Tente novamente em "
+                        + result.retryAfterSeconds() + " segundo(s).");
     }
 
     private void removeIdleBucketsIfDue() {
