@@ -4,6 +4,8 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.headers.Header;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.media.IntegerSchema;
+import io.swagger.v3.oas.models.media.StringSchema;
+import io.swagger.v3.oas.models.parameters.HeaderParameter;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.tags.Tag;
 import org.springdoc.core.customizers.OpenApiCustomizer;
@@ -12,6 +14,11 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
+// Documentação geral da API (formatos, rate limit, paginação, HATEOAS, formato
+// de erro, como começar). Aparece na página inicial do Swagger UI, antes de
+// qualquer endpoint. O detalhe de cada rota (argumentos, respostas, erros) fica
+// nas anotações @Operation/@Parameter/@ApiResponses de cada Controller — não é
+// repetido aqui.
 @Configuration
 public class OpenApi {
 
@@ -55,6 +62,27 @@ public class OpenApi {
                                 formato `APIError`) com o cabeçalho `Retry-After`, que informa em quantos
                                 segundos o cliente pode tentar de novo. A documentação (Swagger UI) não conta no limite.
 
+                                ## Idempotência
+
+                                Todo `POST` aceita o cabeçalho opcional `X-Idempotency-Key`, com uma chave
+                                única escolhida pelo cliente (ex: um UUID, até 100 caracteres). Ele evita que a
+                                mesma operação seja processada duas vezes por acidente, como um clique duplo
+                                ou uma nova tentativa automática do app após uma falha de rede.
+
+                                Como a API se comporta quando o cabeçalho é enviado:
+
+                                - **Chave nova** — a requisição é processada normalmente e a resposta de sucesso (2xx) fica guardada
+
+                                - **Mesma chave e mesma requisição** — nada é criado de novo: a API devolve a mesma resposta da primeira vez, com o cabeçalho `Idempotent-Replayed: true`
+
+                                - **Mesma chave, mas rota ou corpo diferentes** — `422 Unprocessable Entity`: a chave já foi usada para outra operação
+
+                                - **Mesma chave enquanto a primeira ainda está sendo processada** — `409 Conflict`
+
+                                As chaves ficam guardadas por 24 horas e valem por cliente (IP). Respostas de erro
+                                não ficam guardadas: se a primeira tentativa falhou, o cliente pode corrigir e
+                                repetir com a mesma chave. Sem o cabeçalho, o `POST` funciona como sempre.
+
                                 ## Paginação
 
                                 Todos os endpoints de listagem (`GET` sem `/{id}`) são paginados via `Pageable`
@@ -84,7 +112,7 @@ public class OpenApi {
 
                                 ## Formato de erro
 
-                                Qualquer erro (400, 404, 429 ou 500) é devolvido sempre no mesmo formato — o schema
+                                Qualquer erro (400, 404, 409, 422, 429 ou 500) é devolvido sempre no mesmo formato — o schema
                                 **`APIError`**:
 
                                 - `timestamp` — momento do erro
@@ -127,7 +155,9 @@ public class OpenApi {
                         new Tag().name("Escutas"),
                         new Tag().name("Stats")
                 ));
+        // Swagger UI fica disponível em /swagger-ui/index.html quando a aplicação está rodando.
     }
+
     @Bean
     public OpenApiCustomizer rateLimitResponseCustomizer() {
         return openApi -> {
@@ -142,6 +172,30 @@ public class OpenApi {
                                     .addHeaderObject("Retry-After", new Header()
                                             .description("Segundos até a próxima requisição ser aceita")
                                             .schema(new IntegerSchema())))));
+        };
+    }
+
+    @Bean
+    public OpenApiCustomizer idempotencyCustomizer() {
+        return openApi -> {
+            if (openApi.getPaths() == null) {
+                return;
+            }
+            openApi.getPaths().values().forEach(pathItem -> {
+                if (pathItem.getPost() == null) {
+                    return;
+                }
+                pathItem.getPost().addParametersItem(new HeaderParameter()
+                        .name("X-Idempotency-Key")
+                        .required(false)
+                        .description("Chave única da operação (ex: um UUID, até 100 caracteres). Repetir o mesmo "
+                                + "POST com a mesma chave devolve a resposta original sem criar nada de novo.")
+                        .schema(new StringSchema().example("6f1c2c1e-4b0f-4a52-9d58-3c1b8f6a7d11")));
+                pathItem.getPost().getResponses().addApiResponse("409", new ApiResponse()
+                        .description("Já existe uma requisição em processamento com esta X-Idempotency-Key"));
+                pathItem.getPost().getResponses().addApiResponse("422", new ApiResponse()
+                        .description("A X-Idempotency-Key já foi usada em outra requisição (rota ou corpo diferentes)"));
+            });
         };
     }
 }
