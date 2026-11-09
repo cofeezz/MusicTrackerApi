@@ -68,7 +68,7 @@ public class ArtistController {
     @GetMapping
     @Operation(
             summary = "Listar artistas",
-            description = "Lista paginada de artistas (no máximo 2 por página)."
+            description = "Lista paginada de artistas (no máximo 10 por página)."
     )
     @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso")
     public PagedModel<EntityModel<ArtistResponse>> getAll(@ParameterObject Pageable pageable) {

@@ -68,7 +68,7 @@ public class ListenController {
 
     @GetMapping
     @Operation(summary = "Listar o histórico de escutas",
-            description = "Lista paginada de todos os registros de escuta (no máximo 2 por página).")
+            description = "Lista paginada de todos os registros de escuta (no máximo 10 por página).")
     @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso")
     public PagedModel<EntityModel<ListenResponse>> getAll(@ParameterObject Pageable pageable) {
         Page<ListenResponse> page = listenService.findAll(pageable);

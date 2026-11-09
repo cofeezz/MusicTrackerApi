@@ -69,7 +69,7 @@ public class TrackController {
     @GetMapping
     @Operation(
             summary = "Listar faixas",
-            description = "Lista paginada de faixas (no máximo 2 por página), cada uma com os dados "
+            description = "Lista paginada de faixas (no máximo 10 por página), cada uma com os dados "
                     + "resumidos do artista correspondente."
     )
     @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso")

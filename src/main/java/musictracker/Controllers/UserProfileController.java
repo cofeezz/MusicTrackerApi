@@ -81,7 +81,7 @@ public class UserProfileController {
     }
 
     @GetMapping
-    @Operation(summary = "Listar perfis", description = "Lista paginada (no máximo 2 por página).")
+    @Operation(summary = "Listar perfis", description = "Lista paginada (no máximo 10 por página).")
     @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso")
     public PagedModel<EntityModel<UserProfileResponse>> getAll(@ParameterObject Pageable pageable) {
         Page<UserProfileResponse> page = userProfileService.findAll(pageable);
