@@ -21,6 +21,10 @@ public class Playlist {
     @Column(nullable = false)
     private String name;
 
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "owner_id", nullable = false)
+    private User owner;
+
     @ManyToMany
     @JoinTable(
             name = "playlist_track",
@@ -32,8 +36,13 @@ public class Playlist {
     public Playlist() {
     }
 
-    public Playlist(String name) {
+    public Playlist(String name, User owner) {
         this.name = name;
+        this.owner = owner;
+    }
+
+    public User getOwner() {
+        return owner;
     }
 
     public Long getId() {
