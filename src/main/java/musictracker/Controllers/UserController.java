@@ -71,7 +71,7 @@ public class UserController {
     @Operation(
             summary = "Listar usuários",
             description = "Lista paginada de usuários. Por configuração do projeto, cada página "
-                    + "devolve no máximo 2 itens, mesmo que 'size' seja maior na URL."
+                    + "devolve no máximo 10 itens, mesmo que 'size' seja maior na URL."
     )
     @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso")
     public PagedModel<EntityModel<UserResponse>> getAll(@ParameterObject Pageable pageable) {
