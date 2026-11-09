@@ -10,26 +10,27 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-// Não é CRUD de uma entidade própria — é a "cápsula sonora": ranking
-// agregado em cima dos registros de Listen.
 @Service
 @Transactional(readOnly = true)
 public class StatsService {
 
     private final ListenRepository listenRepository;
 
-    public StatsService(ListenRepository listenRepository) {
+    private final UserService userService;
+
+    public StatsService(ListenRepository listenRepository, UserService userService) {
         this.listenRepository = listenRepository;
+        this.userService = userService;
     }
 
-    // Top N faixas de todo o histórico. Recalculado a cada chamada (sem job agendado).
-    public List<TopTrackDTO> topTracks(int limit) {
-        return listenRepository.findTopTracksSince(null, PageRequest.of(0, limit));
+    public List<TopTrackDTO> topTracks(Long userId, int limit) {
+        userService.getEntityOrThrow(userId);
+        return listenRepository.findTopTracksSince(userId, null, PageRequest.of(0, limit));
     }
 
-    // Top N faixas do mês corrente.
-    public List<TopTrackDTO> topTracksMonthly(int limit) {
+    public List<TopTrackDTO> topTracksMonthly(Long userId, int limit) {
+        userService.getEntityOrThrow(userId);
         LocalDateTime startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay();
-        return listenRepository.findTopTracksSince(startOfMonth, PageRequest.of(0, limit));
+        return listenRepository.findTopTracksSince(userId, startOfMonth, PageRequest.of(0, limit));
     }
 }

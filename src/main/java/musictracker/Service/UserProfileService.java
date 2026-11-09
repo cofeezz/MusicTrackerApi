@@ -5,6 +5,7 @@ import musictracker.DTO.UserProfileResponse;
 import musictracker.DTO.UserResponse;
 import musictracker.Entity.User;
 import musictracker.Entity.UserProfile;
+import musictracker.Exception.ConflictException;
 import musictracker.Exception.ResourceNotFoundException;
 import musictracker.Repository.UserProfileRepository;
 import org.springframework.data.domain.Page;
@@ -26,6 +27,9 @@ public class UserProfileService {
 
     public UserProfileResponse create(UserProfileRequest request) {
         User user = userService.getEntityOrThrow(request.userId());
+        if (userProfileRepository.existsByUserId(user.getId())) {
+            throw new ConflictException("O usuário já possui um perfil.");
+        }
         UserProfile profile = new UserProfile(request.bio(), request.avatarUrl(), user);
         return toResponse(userProfileRepository.save(profile));
     }
@@ -55,7 +59,13 @@ public class UserProfileService {
 
         profile.setBio(request.bio());
         profile.setAvatarUrl(request.avatarUrl());
-        profile.setUser(userService.getEntityOrThrow(request.userId()));
+        User user = userService.getEntityOrThrow(request.userId());
+        userProfileRepository.findByUserId(user.getId())
+                .filter(existing -> !existing.getId().equals(id))
+                .ifPresent(existing -> {
+                    throw new ConflictException("O usuário já possui um perfil.");
+                });
+        profile.setUser(user);
 
         return toResponse(userProfileRepository.save(profile));
     }
