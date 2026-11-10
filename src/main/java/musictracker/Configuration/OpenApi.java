@@ -92,6 +92,15 @@ public class OpenApi {
                                 não ficam guardadas: se a primeira tentativa falhou, o cliente pode corrigir e
                                 repetir com a mesma chave. Sem o cabeçalho, o `POST` funciona como sempre.
 
+                                ## CORS
+
+                                A API aceita chamadas de navegador apenas das origens configuradas em
+                                `cors.allowed-origins`. Métodos permitidos: `GET`, `POST`, `PUT`, `DELETE` e `OPTIONS`.
+                                Cabeçalhos aceitos: `Content-Type`, `Accept`, `X-API-Key`, `X-Idempotency-Key` e
+                                `X-API-Version`. Os cabeçalhos `Location`, `Retry-After`, `X-RateLimit-*`,
+                                `Idempotent-Replayed` e `WWW-Authenticate` ficam legíveis para o cliente.
+                                Apps nativos (celular) não são afetados por CORS.
+
                                 ## Paginação
 
                                 Todos os endpoints de listagem (`GET` sem `/{id}`) são paginados via `Pageable`
