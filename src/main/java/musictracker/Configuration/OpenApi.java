@@ -1,5 +1,6 @@
 package musictracker.Configuration;
 
+import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.headers.Header;
 import io.swagger.v3.oas.models.info.Info;
@@ -7,18 +8,16 @@ import io.swagger.v3.oas.models.media.IntegerSchema;
 import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.parameters.HeaderParameter;
 import io.swagger.v3.oas.models.responses.ApiResponse;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.tags.Tag;
+import musictracker.Security.ProtectedRoutes;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
-// Documentação geral da API (formatos, rate limit, paginação, HATEOAS, formato
-// de erro, como começar). Aparece na página inicial do Swagger UI, antes de
-// qualquer endpoint. O detalhe de cada rota (argumentos, respostas, erros) fica
-// nas anotações @Operation/@Parameter/@ApiResponses de cada Controller — não é
-// repetido aqui.
 @Configuration
 public class OpenApi {
 
@@ -30,7 +29,7 @@ public class OpenApi {
                         .version("v1")
                         .description("""
                                 API de rastreamento pessoal de músicas/artistas ouvidos, com ranking pessoal
-                                tipo "cápsula sonora" (top 10 geral + top 3 do mês). Projeto acadêmico —
+                                tipo "cápsula sonora" (mais ouvidas de sempre e do mês). Projeto acadêmico —
                                 Tecnologia em Desenvolvimento de Sistemas para a Internet.
 
                                 ---
@@ -43,8 +42,18 @@ public class OpenApi {
 
                                 ## Autenticação
 
-                                Esta API **não exige autenticação** (é um projeto acadêmico de escopo didático,
-                                sem login/sessão). Qualquer cliente pode chamar qualquer endpoint diretamente.
+                                As rotas protegidas exigem uma **chave de API** no cabeçalho `X-API-Key`.
+                                A chave é gerada em `POST /api-keys` com username e senha, aparece completa
+                                uma única vez e pode ser revogada em `DELETE /api-keys/{id}`. No Swagger UI,
+                                use o botão **Authorize** para informá-la.
+
+                                - **Abertas:** `POST /users`, `POST /api-keys` e as consultas (`GET`) de artistas, faixas e playlists
+
+                                - **Protegidas:** todo o resto — criar, alterar e apagar dados, e ler usuários, perfis, escutas, rankings e chaves
+
+                                - **Playlists:** qualquer um vê, mas só o dono (quem a criou) pode alterá-la; outro usuário recebe `403 Forbidden`
+
+                                Chave ausente, inválida ou revogada resulta em `401 Unauthorized`.
 
                                 ## Rate limit
 
@@ -112,7 +121,7 @@ public class OpenApi {
 
                                 ## Formato de erro
 
-                                Qualquer erro (400, 404, 409, 422, 429 ou 500) é devolvido sempre no mesmo formato — o schema
+                                Qualquer erro (400, 401, 403, 404, 409, 422, 429 ou 500) é devolvido sempre no mesmo formato — o schema
                                 **`APIError`**:
 
                                 - `timestamp` — momento do erro
@@ -132,21 +141,29 @@ public class OpenApi {
 
                                 ## Como começar (ordem recomendada de chamadas)
 
-                                1. `POST /artists` — cadastrar um artista
+                                1. `POST /users` — criar um usuário
 
-                                2. `POST /tracks` (com o `artistId` do passo 1) — cadastrar uma faixa
+                                2. `POST /api-keys` — gerar a chave e informá-la em **Authorize**
 
-                                3. `POST /users` — criar um usuário
+                                3. `POST /artists` — cadastrar um artista
 
-                                4. `POST /profiles` (com o `userId` do passo 3) — criar o perfil do usuário
+                                4. `POST /tracks` (com o `artistId`) — cadastrar uma faixa
 
-                                5. `POST /listens` (com `userId` e `trackId`) — registrar uma escuta
+                                5. `POST /profiles` (com o `userId` do passo 1) — criar o perfil
 
-                                6. `POST /playlists`, depois `POST /playlists/{id}/tracks/{trackId}` — montar uma playlist
+                                6. `POST /listens` (com `userId` e `trackId`) — registrar uma escuta
 
-                                7. `GET /stats/top-tracks` e `GET /stats/top-tracks/monthly` — ver os rankings
+                                7. `POST /playlists`, depois `POST /playlists/{id}/tracks/{trackId}` — montar uma playlist
+
+                                8. `GET /stats/top-tracks?userId=` e `GET /stats/top-tracks/monthly?userId=` — ver os rankings
                                 """))
+                .components(new Components().addSecuritySchemes("ApiKeyAuth", new SecurityScheme()
+                        .type(SecurityScheme.Type.APIKEY)
+                        .in(SecurityScheme.In.HEADER)
+                        .name("X-API-Key")
+                        .description("Chave gerada em POST /api-keys")))
                 .tags(List.of(
+                        new Tag().name("Chaves de API"),
                         new Tag().name("Usuários"),
                         new Tag().name("Perfis"),
                         new Tag().name("Artistas"),
@@ -155,7 +172,6 @@ public class OpenApi {
                         new Tag().name("Escutas"),
                         new Tag().name("Stats")
                 ));
-        // Swagger UI fica disponível em /swagger-ui/index.html quando a aplicação está rodando.
     }
 
     @Bean
@@ -190,12 +206,29 @@ public class OpenApi {
                         .required(false)
                         .description("Chave única da operação (ex: um UUID, até 100 caracteres). Repetir o mesmo "
                                 + "POST com a mesma chave devolve a resposta original sem criar nada de novo.")
-                        .schema(new StringSchema().example("6f1c2c1e-4b0f-4a52-9d58-3c1b8f6a7d11")));
+                        .schema(new StringSchema()));
                 pathItem.getPost().getResponses().addApiResponse("409", new ApiResponse()
                         .description("Já existe uma requisição em processamento com esta X-Idempotency-Key"));
                 pathItem.getPost().getResponses().addApiResponse("422", new ApiResponse()
                         .description("A X-Idempotency-Key já foi usada em outra requisição (rota ou corpo diferentes)"));
             });
+        };
+    }
+
+    @Bean
+    public OpenApiCustomizer apiKeySecurityCustomizer() {
+        return openApi -> {
+            if (openApi.getPaths() == null) {
+                return;
+            }
+            openApi.getPaths().forEach((path, pathItem) ->
+                    pathItem.readOperationsMap().forEach((method, operation) -> {
+                        if (ProtectedRoutes.requiresKey(method.name(), path)) {
+                            operation.addSecurityItem(new SecurityRequirement().addList("ApiKeyAuth"));
+                            operation.getResponses().addApiResponse("401", new ApiResponse()
+                                    .description("Chave de API ausente, inválida ou revogada"));
+                        }
+                    }));
         };
     }
 }
