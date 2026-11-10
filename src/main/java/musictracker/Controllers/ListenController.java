@@ -47,6 +47,7 @@ public class ListenController {
             @ApiResponse(responseCode = "400", description = "Dados inválidos: userId/trackId ausentes, "
                     + "data futura em 'listenedAt', duração zero/negativa, ou JSON mal formado "
                     + "(ex: texto em campo numérico, data em formato incorreto)"),
+            @ApiResponse(responseCode = "403", description = "O userId não é o dono da chave de API"),
             @ApiResponse(responseCode = "404", description = "userId ou trackId informado não existe")
     })
     public ResponseEntity<EntityModel<ListenResponse>> create(@Valid @RequestBody ListenRequest request) {
@@ -59,6 +60,7 @@ public class ListenController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Escuta encontrada"),
             @ApiResponse(responseCode = "400", description = "O ID informado não é um número válido"),
+            @ApiResponse(responseCode = "403", description = "A escuta pertence a outro usuário"),
             @ApiResponse(responseCode = "404", description = "Não existe escuta com esse ID")
     })
     public EntityModel<ListenResponse> getById(
@@ -68,7 +70,7 @@ public class ListenController {
 
     @GetMapping
     @Operation(summary = "Listar o histórico de escutas",
-            description = "Lista paginada de todos os registros de escuta (no máximo 10 por página).")
+            description = "Lista paginada das escutas do dono da chave de API (no máximo 10 por página).")
     @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso")
     public PagedModel<EntityModel<ListenResponse>> getAll(@ParameterObject Pageable pageable) {
         Page<ListenResponse> page = listenService.findAll(pageable);
@@ -80,7 +82,8 @@ public class ListenController {
             description = "Consulta personalizada: histórico de escutas filtrado por usuário, paginado.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso"),
-            @ApiResponse(responseCode = "400", description = "O userId informado não é um número válido")
+            @ApiResponse(responseCode = "400", description = "O userId informado não é um número válido"),
+            @ApiResponse(responseCode = "403", description = "O userId não é o dono da chave de API")
     })
     public PagedModel<EntityModel<ListenResponse>> getByUser(
             @Parameter(description = "ID numérico do usuário", example = "1") @PathVariable Long userId,
@@ -94,6 +97,7 @@ public class ListenController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Escuta atualizada"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos ou ID em formato incorreto"),
+            @ApiResponse(responseCode = "403", description = "A escuta pertence a outro usuário"),
             @ApiResponse(responseCode = "404", description = "Escuta, usuário ou faixa não encontrados")
     })
     public EntityModel<ListenResponse> update(
@@ -107,6 +111,7 @@ public class ListenController {
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Escuta removida"),
             @ApiResponse(responseCode = "400", description = "O ID informado não é um número válido"),
+            @ApiResponse(responseCode = "403", description = "A escuta pertence a outro usuário"),
             @ApiResponse(responseCode = "404", description = "Não existe escuta com esse ID")
     })
     public ResponseEntity<Void> delete(

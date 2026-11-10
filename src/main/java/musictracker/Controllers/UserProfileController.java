@@ -47,6 +47,7 @@ public class UserProfileController {
             @ApiResponse(responseCode = "201", description = "Perfil criado"),
             @ApiResponse(responseCode = "400", description = "Bio maior que 300 caracteres, avatarUrl "
                     + "em formato inválido, ou userId ausente"),
+            @ApiResponse(responseCode = "403", description = "O userId não é o dono da chave de API"),
             @ApiResponse(responseCode = "404", description = "O userId informado não existe")
     })
     public ResponseEntity<EntityModel<UserProfileResponse>> create(@Valid @RequestBody UserProfileRequest request) {
@@ -93,6 +94,7 @@ public class UserProfileController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Perfil atualizado"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos ou ID em formato incorreto"),
+            @ApiResponse(responseCode = "403", description = "O perfil pertence a outro usuário"),
             @ApiResponse(responseCode = "404", description = "Perfil ou usuário não encontrado")
     })
     public EntityModel<UserProfileResponse> update(
@@ -106,6 +108,7 @@ public class UserProfileController {
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Perfil removido"),
             @ApiResponse(responseCode = "400", description = "O ID informado não é um número válido"),
+            @ApiResponse(responseCode = "403", description = "O perfil pertence a outro usuário"),
             @ApiResponse(responseCode = "404", description = "Não existe perfil com esse ID")
     })
     public ResponseEntity<Void> delete(
