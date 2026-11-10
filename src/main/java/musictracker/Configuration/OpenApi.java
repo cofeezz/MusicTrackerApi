@@ -53,6 +53,8 @@ public class OpenApi {
 
                                 - **Playlists:** qualquer um vê, mas só o dono (quem a criou) pode alterá-la; outro usuário recebe `403 Forbidden`
 
+                                - **Dados pessoais:** conta, perfil e escutas só podem ser alterados (e escutas, vistas) pelo próprio dono da chave; outro usuário recebe `403 Forbidden`
+
                                 Chave ausente, inválida ou revogada resulta em `401 Unauthorized`.
 
                                 ## Rate limit
