@@ -1,5 +1,6 @@
 package musictracker.Security;
 
+import musictracker.Exception.ForbiddenException;
 import musictracker.Exception.UnauthorizedException;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -9,6 +10,12 @@ public final class AuthenticatedUser {
     public static final String ATTRIBUTE = "authenticatedUserId";
 
     private AuthenticatedUser() {
+    }
+
+    public static void requireSame(Long ownerId, String message) {
+        if (!requireId().equals(ownerId)) {
+            throw new ForbiddenException(message);
+        }
     }
 
     public static Long requireId() {
