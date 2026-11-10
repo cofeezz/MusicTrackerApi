@@ -6,6 +6,7 @@ import musictracker.Entity.User;
 import musictracker.Exception.ConflictException;
 import musictracker.Exception.ResourceNotFoundException;
 import musictracker.Repository.UserRepository;
+import musictracker.Security.AuthenticatedUser;
 import musictracker.Security.PasswordHasher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -49,6 +50,7 @@ public class UserService {
     }
 
     public UserResponse update(Long id, UserRequest request) {
+        AuthenticatedUser.requireSame(id, "Você só pode alterar a sua própria conta.");
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado com o ID: " + id));
 
@@ -61,6 +63,7 @@ public class UserService {
     }
 
     public void delete(Long id) {
+        AuthenticatedUser.requireSame(id, "Você só pode remover a sua própria conta.");
         if (!userRepository.existsById(id)) {
             throw new ResourceNotFoundException("Usuário não encontrado com o ID: " + id);
         }
