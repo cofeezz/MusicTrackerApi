@@ -71,7 +71,7 @@ public class UserController {
     @Operation(
             summary = "Listar usuários",
             description = "Lista paginada de usuários. Por configuração do projeto, cada página "
-                    + "devolve no máximo 2 itens, mesmo que 'size' seja maior na URL."
+                    + "devolve no máximo 10 itens, mesmo que 'size' seja maior na URL."
     )
     @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso")
     public PagedModel<EntityModel<UserResponse>> getAll(@ParameterObject Pageable pageable) {
@@ -102,6 +102,7 @@ public class UserController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Usuário atualizado"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos ou ID em formato incorreto"),
+            @ApiResponse(responseCode = "403", description = "A conta pertence a outro usuário"),
             @ApiResponse(responseCode = "404", description = "Não existe usuário com esse ID")
     })
     public EntityModel<UserResponse> update(
@@ -115,6 +116,7 @@ public class UserController {
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Usuário removido com sucesso (sem conteúdo na resposta)"),
             @ApiResponse(responseCode = "400", description = "O ID informado não é um número válido"),
+            @ApiResponse(responseCode = "403", description = "A conta pertence a outro usuário"),
             @ApiResponse(responseCode = "404", description = "Não existe usuário com esse ID")
     })
     public ResponseEntity<Void> delete(

@@ -2,6 +2,7 @@ package musictracker.Exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import musictracker.DTO.APIError;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -133,6 +134,43 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(new APIError(
                 LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS),
                 status.value(), status.name(), exception.getMessage(), request.getRequestURI()));
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<APIError> handleConflict(
+            ConflictException exception, HttpServletRequest request) {
+
+        return build(HttpStatus.CONFLICT, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<APIError> handleDataIntegrity(
+            DataIntegrityViolationException exception, HttpServletRequest request) {
+
+        return build(HttpStatus.CONFLICT,
+                "A operação conflita com dados existentes: o valor já está em uso ou o registro "
+                        + "possui outros registros dependentes (remova ou altere os dependentes primeiro).",
+                request);
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<APIError> handleUnauthorized(
+            UnauthorizedException exception, HttpServletRequest request) {
+
+        return build(HttpStatus.UNAUTHORIZED, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<APIError> handleForbidden(
+            ForbiddenException exception, HttpServletRequest request) {
+
+        return build(HttpStatus.FORBIDDEN, exception.getMessage(), request);
+    }
+
+    private ResponseEntity<APIError> build(HttpStatus status, String message, HttpServletRequest request) {
+        return ResponseEntity.status(status).body(new APIError(
+                LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS),
+                status.value(), status.name(), message, request.getRequestURI()));
     }
 
     // Última linha de defesa para erros não previstos -> 500 (sem vazar stack trace pro cliente)

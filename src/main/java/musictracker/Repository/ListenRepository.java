@@ -13,19 +13,17 @@ import java.util.List;
 
 public interface ListenRepository extends JpaRepository<Listen, Long> {
 
-    // Ranking desde uma data (passe null para considerar todo o histórico).
-    // Usado tanto pelo top 10 geral quanto pelo top 3 do mês (mudando o "since").
     @Query("""
             SELECT new musictracker.DTO.TopTrackDTO(
                 t.id, t.name, a.name, COUNT(l), COALESCE(SUM(l.durationSeconds), 0))
             FROM Listen l
             JOIN l.track t
             JOIN t.artist a
-            WHERE (:since IS NULL OR l.listenedAt >= :since)
+            WHERE l.user.id = :userId AND (:since IS NULL OR l.listenedAt >= :since)
             GROUP BY t.id, t.name, a.name
-            ORDER BY COUNT(l) DESC
+            ORDER BY COUNT(l) DESC, COALESCE(SUM(l.durationSeconds), 0) DESC, t.id ASC
             """)
-    List<TopTrackDTO> findTopTracksSince(@Param("since") LocalDateTime since, Pageable pageable);
+    List<TopTrackDTO> findTopTracksSince(@Param("userId") Long userId, @Param("since") LocalDateTime since, Pageable pageable);
 
     // Segunda consulta personalizada, exposta em /listens/by-user/{id}
     Page<Listen> findByUserId(Long userId, Pageable pageable);

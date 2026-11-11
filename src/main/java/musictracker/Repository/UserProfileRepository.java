@@ -9,4 +9,6 @@ public interface UserProfileRepository extends JpaRepository<UserProfile, Long> 
 
     // Consulta personalizada: encontra o perfil a partir do ID do usuário
     Optional<UserProfile> findByUserId(Long userId);
+
+    boolean existsByUserId(Long userId);
 }

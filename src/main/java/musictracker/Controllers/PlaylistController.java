@@ -37,7 +37,7 @@ public class PlaylistController {
 
     @PostMapping
     @Operation(summary = "Criar uma nova playlist (vazia)",
-            description = "Cria a playlist apenas com um nome; faixas são adicionadas depois via "
+            description = "Cria a playlist apenas com um nome; o dono é o usuário dono da chave de API. Faixas são adicionadas depois via "
                     + "POST /playlists/{id}/tracks/{trackId}.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Playlist criada"),
@@ -61,7 +61,7 @@ public class PlaylistController {
     }
 
     @GetMapping
-    @Operation(summary = "Listar playlists", description = "Lista paginada (no máximo 2 por página).")
+    @Operation(summary = "Listar playlists", description = "Lista paginada (no máximo 10 por página). Mostra as playlists de todos os usuários.")
     @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso")
     public PagedModel<EntityModel<PlaylistResponse>> getAll(@ParameterObject Pageable pageable) {
         Page<PlaylistResponse> page = playlistService.findAll(pageable);
@@ -88,6 +88,7 @@ public class PlaylistController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Playlist atualizada"),
             @ApiResponse(responseCode = "400", description = "Nome inválido ou ID em formato incorreto"),
+            @ApiResponse(responseCode = "403", description = "A playlist pertence a outro usuário"),
             @ApiResponse(responseCode = "404", description = "Não existe playlist com esse ID")
     })
     public EntityModel<PlaylistResponse> update(
@@ -103,6 +104,7 @@ public class PlaylistController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Faixa adicionada"),
             @ApiResponse(responseCode = "400", description = "ID da playlist ou da faixa em formato inválido"),
+            @ApiResponse(responseCode = "403", description = "A playlist pertence a outro usuário"),
             @ApiResponse(responseCode = "404", description = "Playlist ou faixa não encontrada")
     })
     public EntityModel<PlaylistResponse> addTrack(
@@ -116,6 +118,7 @@ public class PlaylistController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Faixa removida"),
             @ApiResponse(responseCode = "400", description = "ID da playlist ou da faixa em formato inválido"),
+            @ApiResponse(responseCode = "403", description = "A playlist pertence a outro usuário"),
             @ApiResponse(responseCode = "404", description = "Playlist não encontrada")
     })
     public EntityModel<PlaylistResponse> removeTrack(
@@ -129,6 +132,7 @@ public class PlaylistController {
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Playlist removida"),
             @ApiResponse(responseCode = "400", description = "O ID informado não é um número válido"),
+            @ApiResponse(responseCode = "403", description = "A playlist pertence a outro usuário"),
             @ApiResponse(responseCode = "404", description = "Não existe playlist com esse ID")
     })
     public ResponseEntity<Void> delete(
