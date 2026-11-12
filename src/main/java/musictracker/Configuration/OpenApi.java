@@ -94,6 +94,15 @@ public class OpenApi {
                                 não ficam guardadas: se a primeira tentativa falhou, o cliente pode corrigir e
                                 repetir com a mesma chave. Sem o cabeçalho, o `POST` funciona como sempre.
 
+                                ## Versionamento
+
+                                Alguns endpoints têm mais de uma versão, escolhida pelo cabeçalho `X-API-Version`
+                                (`1` ou `2`). Sem o cabeçalho, vale a versão `1`. Um valor desconhecido resulta em
+                                `400 Bad Request`. A resposta devolve o cabeçalho `X-API-Version` com a versão usada.
+
+                                - `GET /stats/top-tracks` e `GET /stats/top-tracks/monthly`: a versão `1` devolve
+                                  `timesListened` e `totalSeconds`; a versão `2` acrescenta `rank` e `totalMinutes`
+
                                 ## CORS
 
                                 A API aceita chamadas de navegador apenas das origens configuradas em
