@@ -225,12 +225,12 @@ Alguns endpoints têm mais de uma versão, escolhida pelo cabeçalho `X-API-Vers
 
 ### Limite de requisições (rate limit)
 
-Cada cliente tem um "balde de fichas": cada pedido gasta uma ficha e o balde recebe fichas novas continuamente. Isso permite uma rajada curta, mas limita a média. Por padrão, **20 fichas, recarregando 1 por segundo**:
+Cada cliente tem um "balde de fichas": cada pedido gasta uma ficha e o balde recebe fichas novas continuamente. Isso permite uma rajada curta, mas limita a média. Por padrão, **20 fichas, recarregando 1 a cada 5 segundos**:
 
 ```properties
 ratelimit.enabled=true
 ratelimit.capacity=20
-ratelimit.refill-per-second=1
+ratelimit.refill-per-second=0.2
 ```
 
 Toda resposta traz `X-RateLimit-Limit` e `X-RateLimit-Remaining`. Quando o balde esvazia, a API responde **429 Too Many Requests** com o cabeçalho `Retry-After` (em quantos segundos tentar de novo).
