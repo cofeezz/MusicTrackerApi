@@ -21,7 +21,7 @@ public class ApiCorsFilter extends CorsFilter {
 
     private static UrlBasedCorsConfigurationSource source(List<String> allowedOrigins, long maxAgeSeconds) {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(allowedOrigins.stream().map(String::trim).toList());
+        configuration.setAllowedOrigins(allowedOrigins.stream().map(String::trim).map(o -> o.replaceAll("/+$", "")).filter(o -> !o.isEmpty()).toList());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of(
                 "Content-Type", "Accept", "X-API-Key", "X-Idempotency-Key", "X-API-Version"));

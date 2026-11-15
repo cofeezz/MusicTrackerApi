@@ -60,6 +60,7 @@ public class UserProfileController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Perfil encontrado"),
             @ApiResponse(responseCode = "400", description = "O ID informado não é um número válido"),
+            @ApiResponse(responseCode = "403", description = "O perfil pertence a outro usuário"),
             @ApiResponse(responseCode = "404", description = "Não existe perfil com esse ID")
     })
     public EntityModel<UserProfileResponse> getById(
@@ -74,6 +75,7 @@ public class UserProfileController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Perfil encontrado"),
             @ApiResponse(responseCode = "400", description = "O userId informado não é um número válido"),
+            @ApiResponse(responseCode = "403", description = "O perfil pertence a outro usuário"),
             @ApiResponse(responseCode = "404", description = "Esse usuário não existe ou ainda não tem perfil")
     })
     public EntityModel<UserProfileResponse> getByUserId(
@@ -82,7 +84,7 @@ public class UserProfileController {
     }
 
     @GetMapping
-    @Operation(summary = "Listar perfis", description = "Lista paginada (no máximo 10 por página).")
+    @Operation(summary = "Listar perfis", description = "Devolve apenas o perfil do dono da chave de API (perfis são pessoais).")
     @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso")
     public PagedModel<EntityModel<UserProfileResponse>> getAll(@ParameterObject Pageable pageable) {
         Page<UserProfileResponse> page = userProfileService.findAll(pageable);

@@ -97,10 +97,11 @@ public class ArtistController {
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Atualizar um artista")
+    @Operation(summary = "Atualizar um artista", description = "Só quem cadastrou o artista pode alterá-lo.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Artista atualizado"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos ou ID em formato incorreto"),
+            @ApiResponse(responseCode = "403", description = "O artista foi cadastrado por outro usuário"),
             @ApiResponse(responseCode = "404", description = "Não existe artista com esse ID")
     })
     public EntityModel<ArtistResponse> update(
@@ -110,10 +111,12 @@ public class ArtistController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Remover um artista")
+    @Operation(summary = "Remover um artista", description = "Só quem cadastrou o artista pode removê-lo, e apenas se ele não tiver faixas.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Artista removido"),
             @ApiResponse(responseCode = "400", description = "O ID informado não é um número válido"),
+            @ApiResponse(responseCode = "403", description = "O artista foi cadastrado por outro usuário"),
+            @ApiResponse(responseCode = "409", description = "O artista ainda possui faixas cadastradas"),
             @ApiResponse(responseCode = "404", description = "Não existe artista com esse ID")
     })
     public ResponseEntity<Void> delete(
