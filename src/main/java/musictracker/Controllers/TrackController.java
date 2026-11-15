@@ -47,7 +47,8 @@ public class TrackController {
             @ApiResponse(responseCode = "400", description = "Nome em branco, artistId ausente ou "
                     + "em formato inválido (ex: texto em vez de número)"),
             @ApiResponse(responseCode = "404", description = "O artistId informado não corresponde "
-                    + "a nenhum artista existente")
+                    + "a nenhum artista existente"),
+            @ApiResponse(responseCode = "409", description = "Esse artista já possui uma faixa com esse nome")
     })
     public ResponseEntity<EntityModel<TrackResponse>> create(@Valid @RequestBody TrackRequest request) {
         TrackResponse response = trackService.create(request);
@@ -97,11 +98,13 @@ public class TrackController {
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Atualizar uma faixa")
+    @Operation(summary = "Atualizar uma faixa", description = "Só quem cadastrou a faixa pode alterá-la.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Faixa atualizada"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos ou ID em formato incorreto"),
-            @ApiResponse(responseCode = "404", description = "Faixa ou artista (novo artistId) não encontrado")
+            @ApiResponse(responseCode = "403", description = "A faixa foi cadastrada por outro usuário"),
+            @ApiResponse(responseCode = "404", description = "Faixa ou artista (novo artistId) não encontrado"),
+            @ApiResponse(responseCode = "409", description = "O artista já possui uma faixa com esse nome")
     })
     public EntityModel<TrackResponse> update(
             @Parameter(description = "ID numérico da faixa", example = "1") @PathVariable Long id,
@@ -110,11 +113,13 @@ public class TrackController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Remover uma faixa")
+    @Operation(summary = "Remover uma faixa", description = "Só quem cadastrou a faixa pode removê-la, e apenas se ela não tiver escutas nem estiver em playlists.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Faixa removida"),
             @ApiResponse(responseCode = "400", description = "O ID informado não é um número válido"),
-            @ApiResponse(responseCode = "404", description = "Não existe faixa com esse ID")
+            @ApiResponse(responseCode = "403", description = "A faixa foi cadastrada por outro usuário"),
+            @ApiResponse(responseCode = "404", description = "Não existe faixa com esse ID"),
+            @ApiResponse(responseCode = "409", description = "A faixa possui escutas ou está em playlists")
     })
     public ResponseEntity<Void> delete(
             @Parameter(description = "ID numérico da faixa", example = "1") @PathVariable Long id) {

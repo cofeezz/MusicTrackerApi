@@ -4,8 +4,11 @@ import musictracker.DTO.ArtistRequest;
 import musictracker.DTO.ArtistResponse;
 import musictracker.Entity.Artist;
 import musictracker.Entity.Genre;
+import musictracker.Exception.ConflictException;
 import musictracker.Exception.ResourceNotFoundException;
 import musictracker.Repository.ArtistRepository;
+import musictracker.Repository.TrackRepository;
+import musictracker.Security.AuthenticatedUser;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -16,13 +19,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class ArtistService {
 
     private final ArtistRepository artistRepository;
+    private final TrackRepository trackRepository;
 
-    public ArtistService(ArtistRepository artistRepository) {
+    public ArtistService(ArtistRepository artistRepository, TrackRepository trackRepository) {
         this.artistRepository = artistRepository;
+        this.trackRepository = trackRepository;
     }
 
     public ArtistResponse create(ArtistRequest request) {
         Artist artist = new Artist(request.name(), request.genre());
+        artist.setCreatedById(AuthenticatedUser.requireId());
         return toResponse(artistRepository.save(artist));
     }
 
@@ -46,6 +52,7 @@ public class ArtistService {
     public ArtistResponse update(Long id, ArtistRequest request) {
         Artist artist = artistRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Artista não encontrado com o ID: " + id));
+        AuthenticatedUser.requireSame(artist.getCreatedById(), "Você só pode alterar artistas que você cadastrou.");
 
         artist.setName(request.name());
         artist.setGenre(request.genre());
@@ -54,10 +61,13 @@ public class ArtistService {
     }
 
     public void delete(Long id) {
-        if (!artistRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Artista não encontrado com o ID: " + id);
+        Artist artist = artistRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Artista não encontrado com o ID: " + id));
+        AuthenticatedUser.requireSame(artist.getCreatedById(), "Você só pode remover artistas que você cadastrou.");
+        if (trackRepository.existsByArtistId(id)) {
+            throw new ConflictException("Este artista possui faixas cadastradas e não pode ser removido.");
         }
-        artistRepository.deleteById(id);
+        artistRepository.delete(artist);
     }
 
     // Só pra outros Services (TrackService) resolverem um ID de artista.

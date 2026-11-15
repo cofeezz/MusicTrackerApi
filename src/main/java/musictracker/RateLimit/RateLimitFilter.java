@@ -47,7 +47,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     public RateLimitFilter(
             @Value("${ratelimit.enabled:true}") boolean enabled,
             @Value("${ratelimit.capacity:20}") long capacity,
-            @Value("${ratelimit.refill-per-second:1}") double refillPerSecond,
+            @Value("${ratelimit.refill-per-second:0.2}") double refillPerSecond,
             @Value("${ratelimit.trust-forwarded-for:false}") boolean trustForwardedFor) {
         this.enabled = enabled;
         this.capacity = capacity;

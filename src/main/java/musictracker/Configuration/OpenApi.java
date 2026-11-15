@@ -13,6 +13,7 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.tags.Tag;
 import musictracker.Security.ProtectedRoutes;
 import org.springdoc.core.customizers.OpenApiCustomizer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -22,7 +23,9 @@ import java.util.List;
 public class OpenApi {
 
     @Bean
-    public OpenAPI musicTrackerOpenApi() {
+    public OpenAPI musicTrackerOpenApi(
+            @Value("${ratelimit.capacity:20}") long capacity,
+            @Value("${ratelimit.refill-per-second:0.2}") double refillPerSecond) {
         return new OpenAPI()
                 .info(new Info()
                         .title("Music Tracker API")
@@ -53,25 +56,30 @@ public class OpenApi {
 
                                 - **Playlists:** qualquer um vê, mas só o dono (quem a criou) pode alterá-la; outro usuário recebe `403 Forbidden`
 
-                                - **Dados pessoais:** conta, perfil e escutas só podem ser alterados (e escutas, vistas) pelo próprio dono da chave; outro usuário recebe `403 Forbidden`
+                                - **Artistas e faixas:** qualquer um vê, mas só quem cadastrou pode alterar ou remover (`403`); um artista com faixas, ou uma faixa com escutas ou em playlists, não pode ser removido (`409`); o mesmo artista não pode ter duas faixas com o mesmo nome (`409`)
+
+                                - **Dados pessoais:** conta, perfil e escutas só podem ser vistos e alterados pelo próprio dono da chave; outro usuário recebe `403 Forbidden`
 
                                 Chave ausente, inválida ou revogada resulta em `401 Unauthorized`.
 
                                 ## Rate limit
 
-                                Cada IP tem um "balde de fichas" (algoritmo *token bucket*): cada requisição
-                                gasta 1 ficha e o balde recebe fichas novas continuamente. Isso permite uma
-                                rajada curta, mas limita a média de requisições por segundo.
+                                Cada cliente (identificado pelo IP) tem um "balde de fichas" (algoritmo *token bucket*):
+                                cada requisição gasta 1 ficha.
+
+                                - **Limite:** o balde comporta **{{CAPACITY}} fichas**, ou seja, até {{CAPACITY}} requisições em rajada
+
+                                - **Reposição:** o balde recebe **1 ficha a cada {{SECONDS}} segundos**; depois da rajada, o ritmo sustentado é de 1 requisição a cada {{SECONDS}} segundos
+
+                                - **Quando volta:** com o balde vazio, a API responde **`429 Too Many Requests`** (formato `APIError`) com o cabeçalho `Retry-After`, que diz em quantos segundos a próxima requisição será aceita
 
                                 Toda resposta traz os cabeçalhos:
 
-                                - `X-RateLimit-Limit` — tamanho do balde (rajada máxima)
+                                - `X-RateLimit-Limit` — tamanho do balde ({{CAPACITY}})
 
                                 - `X-RateLimit-Remaining` — fichas que ainda restam
 
-                                Quando o balde esvazia, a API responde **`429 Too Many Requests`** (no mesmo
-                                formato `APIError`) com o cabeçalho `Retry-After`, que informa em quantos
-                                segundos o cliente pode tentar de novo. A documentação (Swagger UI) não conta no limite.
+                                A documentação (Swagger UI) não conta no limite.
 
                                 ## Idempotência
 
@@ -176,7 +184,9 @@ public class OpenApi {
                                 7. `POST /playlists`, depois `POST /playlists/{id}/tracks/{trackId}` — montar uma playlist
 
                                 8. `GET /stats/top-tracks?userId=` e `GET /stats/top-tracks/monthly?userId=` — ver os rankings
-                                """))
+                                """
+                                .replace("{{CAPACITY}}", String.valueOf(capacity))
+                                .replace("{{SECONDS}}", String.valueOf(Math.round(1 / refillPerSecond)))))
                 .components(new Components().addSecuritySchemes("ApiKeyAuth", new SecurityScheme()
                         .type(SecurityScheme.Type.APIKEY)
                         .in(SecurityScheme.In.HEADER)
@@ -195,7 +205,9 @@ public class OpenApi {
     }
 
     @Bean
-    public OpenApiCustomizer rateLimitResponseCustomizer() {
+    public OpenApiCustomizer rateLimitResponseCustomizer(
+            @Value("${ratelimit.capacity:20}") long capacity,
+            @Value("${ratelimit.refill-per-second:0.2}") double refillPerSecond) {
         return openApi -> {
             if (openApi.getPaths() == null) {
                 return;
@@ -203,8 +215,15 @@ public class OpenApi {
             openApi.getPaths().values().forEach(pathItem ->
                     pathItem.readOperations().forEach(operation ->
                             operation.getResponses().addApiResponse("429", new ApiResponse()
-                                    .description("Limite de requisições excedido (rate limit). "
+                                    .description("Limite de requisições excedido (rate limit): o balde de " + capacity
+                                            + " fichas esvaziou e recebe 1 ficha a cada " + Math.round(1 / refillPerSecond) + " segundos. "
                                             + "Aguarde o tempo informado em Retry-After antes de tentar de novo.")
+                                    .addHeaderObject("X-RateLimit-Limit", new Header()
+                                            .description("Tamanho do balde (requisições em rajada)")
+                                            .schema(new IntegerSchema()))
+                                    .addHeaderObject("X-RateLimit-Remaining", new Header()
+                                            .description("Fichas restantes (0 quando bloqueado)")
+                                            .schema(new IntegerSchema()))
                                     .addHeaderObject("Retry-After", new Header()
                                             .description("Segundos até a próxima requisição ser aceita")
                                             .schema(new IntegerSchema())))));

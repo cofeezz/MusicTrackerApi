@@ -5,8 +5,12 @@ import musictracker.DTO.TrackRequest;
 import musictracker.DTO.TrackResponse;
 import musictracker.Entity.Artist;
 import musictracker.Entity.Track;
+import musictracker.Exception.ConflictException;
 import musictracker.Exception.ResourceNotFoundException;
+import musictracker.Repository.ListenRepository;
+import musictracker.Repository.PlaylistRepository;
 import musictracker.Repository.TrackRepository;
+import musictracker.Security.AuthenticatedUser;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -18,15 +22,24 @@ public class TrackService {
 
     private final TrackRepository trackRepository;
     private final ArtistService artistService;
+    private final ListenRepository listenRepository;
+    private final PlaylistRepository playlistRepository;
 
-    public TrackService(TrackRepository trackRepository, ArtistService artistService) {
+    public TrackService(TrackRepository trackRepository, ArtistService artistService,
+                        ListenRepository listenRepository, PlaylistRepository playlistRepository) {
         this.trackRepository = trackRepository;
         this.artistService = artistService;
+        this.listenRepository = listenRepository;
+        this.playlistRepository = playlistRepository;
     }
 
     public TrackResponse create(TrackRequest request) {
         Artist artist = artistService.getEntityOrThrow(request.artistId());
+        if (trackRepository.existsByNameIgnoreCaseAndArtistId(request.name(), artist.getId())) {
+            throw new ConflictException("Este artista já possui uma faixa com esse nome.");
+        }
         Track track = new Track(request.name(), artist);
+        track.setCreatedById(AuthenticatedUser.requireId());
         return toResponse(trackRepository.save(track));
     }
 
@@ -51,17 +64,29 @@ public class TrackService {
         Track track = trackRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Faixa não encontrada com o ID: " + id));
 
+        AuthenticatedUser.requireSame(track.getCreatedById(), "Você só pode alterar faixas que você cadastrou.");
+
+        Artist artist = artistService.getEntityOrThrow(request.artistId());
+        boolean changed = !track.getName().equalsIgnoreCase(request.name())
+                || !track.getArtist().getId().equals(artist.getId());
+        if (changed && trackRepository.existsByNameIgnoreCaseAndArtistId(request.name(), artist.getId())) {
+            throw new ConflictException("Este artista já possui uma faixa com esse nome.");
+        }
+
         track.setName(request.name());
-        track.setArtist(artistService.getEntityOrThrow(request.artistId()));
+        track.setArtist(artist);
 
         return toResponse(trackRepository.save(track));
     }
 
     public void delete(Long id) {
-        if (!trackRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Faixa não encontrada com o ID: " + id);
+        Track track = trackRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Faixa não encontrada com o ID: " + id));
+        AuthenticatedUser.requireSame(track.getCreatedById(), "Você só pode remover faixas que você cadastrou.");
+        if (listenRepository.existsByTrackId(id) || playlistRepository.existsByTracksId(id)) {
+            throw new ConflictException("Esta faixa possui escutas ou está em playlists e não pode ser removida.");
         }
-        trackRepository.deleteById(id);
+        trackRepository.delete(track);
     }
 
     // Só pra outros Services (PlaylistService, ListenService) resolverem um ID de faixa.

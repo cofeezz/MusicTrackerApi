@@ -27,4 +27,6 @@ public interface ListenRepository extends JpaRepository<Listen, Long> {
 
     // Segunda consulta personalizada, exposta em /listens/by-user/{id}
     Page<Listen> findByUserId(Long userId, Pageable pageable);
+
+    boolean existsByTrackId(Long trackId);
 }
