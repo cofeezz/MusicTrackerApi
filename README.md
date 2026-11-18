@@ -14,6 +14,7 @@ Este repositório é a **API** (o servidor que guarda e calcula tudo). O aplicat
 - Cadastrar artistas e faixas
 - Registrar que você ouviu uma música (quando e por quantos segundos)
 - Ver o seu ranking de faixas mais ouvidas, de sempre ou do mês
+- Comparar o seu ranking com a comunidade, só com porcentagens anônimas
 - Montar playlists e ver as de outras pessoas
 
 ## Como funciona, em 4 passos
@@ -21,25 +22,34 @@ Este repositório é a **API** (o servidor que guarda e calcula tudo). O aplicat
 1. **Cadastre-se.** Você cria um usuário com nome, e-mail e senha.
 2. **Pegue a sua chave de acesso.** Com usuário e senha, a API entrega uma chave que começa com `mt_`. Ela funciona como uma senha para o app: você a mostra a cada pedido. Ela aparece **uma única vez**, então guarde.
 3. **Registre o que ouviu.** Cada escuta é um registro: quem ouviu, qual faixa, quando e por quanto tempo.
-4. **Veja o ranking.** A API conta as escutas e devolve as faixas mais ouvidas.
+4. **Veja o ranking.** A API conta as escutas e devolve as faixas mais ouvidas. Se quiser, compare com a comunidade: a API mostra só porcentagens, nunca nomes.
 
 ### Quem pode ver e mexer em quê
 
-- **Catálogo (artistas, faixas, playlists):** qualquer pessoa pode ver, mesmo sem chave.
-- **Seus dados (conta, perfil, escutas):** só você pode alterar. As escutas só você vê.
-- **Playlists:** todo mundo vê, mas só quem criou pode editar ou apagar.
+- **Catálogo (artistas, faixas):** qualquer pessoa vê, mesmo sem chave. Só quem cadastrou altera ou apaga.
+- **Playlists:** todo mundo vê (com o nome de usuário do dono), mas só quem criou pode editar ou apagar.
+- **Seus dados (e-mail, perfil, escutas, ranking, chaves):** só você vê e altera. Outra pessoa recebe `403`.
 - **Todo o resto:** exige a chave de acesso.
+
+### Privacidade e uso das suas escutas
+
+- **Seu e-mail é privado.** Não existe lista pública de usuários: `GET /users` e a busca devolvem só a sua própria conta.
+- **Suas escutas e seu ranking são privados.** Só você os vê.
+- **Aviso importante:** ao criar a conta, você concorda que as suas escutas poderão ser usadas, de forma **agregada e anônima**, para comparar o seu ranking com o da comunidade, como o Spotify faz ao dizer "você está entre os 5% que mais ouvem esta música". A comparação mostra apenas **porcentagens e contagens**, nunca nomes, e-mails, IDs ou escutas individuais de outras pessoas.
+- Com poucos usuários, uma porcentagem é mais fácil de associar a alguém (com 2 usuários, 50% já indica que a outra pessoa ouviu a faixa).
+- **Apagar a conta** (`DELETE /users/{id}`) remove também as suas chaves, o seu perfil, as suas escutas e as suas playlists. Os artistas e as faixas que você cadastrou continuam no catálogo.
 
 ## Teste em 2 minutos, sem instalar nada
 
 Abra o [Swagger](https://musictrackerapi-hgj1.onrender.com/swagger-ui/index.html). É uma página onde você testa a API clicando.
 
 1. Em `POST /users`, clique em **Try it out**, preencha nome, e-mail e senha e execute. Anote o `id` que voltar.
-2. Em `POST /api-keys`, informe o mesmo usuário e a senha. Copie o valor de `key` da resposta.
+2. Em `POST /api-keys`, informe o mesmo usuário e a senha. Copie o valor de `key` da resposta (o `userId` também vem aí).
 3. Clique em **Authorize** no topo, cole a chave e confirme.
 4. Cadastre um artista (`POST /artists`) e uma faixa (`POST /tracks`).
 5. Registre uma escuta em `POST /listens`, usando o seu `userId` e o `id` da faixa.
 6. Veja o resultado em `GET /stats/top-tracks`, informando o seu `userId`.
+7. Compare com a comunidade em `GET /stats/community/comparison` (suas faixas) e `GET /stats/community/top-tracks` (top global). Só aparecem porcentagens.
 
 Deixe o campo `X-Idempotency-Key` vazio, a menos que queira testar a proteção contra pedidos repetidos (explicada abaixo).
 
@@ -103,7 +113,7 @@ Listagens são paginadas. IDs são numéricos; enviar um valor não numérico de
 
 | Método | Rota | Descrição |
 |---|---|---|
-| POST | `/api-keys` | Gera uma chave (usuário + senha); rota aberta |
+| POST | `/api-keys` | Gera uma chave (usuário + senha); rota aberta. A resposta traz também o seu `userId` |
 | GET | `/api-keys` | Lista as suas chaves |
 | GET | `/api-keys/{id}` | Busca uma das suas chaves |
 | DELETE | `/api-keys/{id}` | Revoga uma chave |
@@ -116,11 +126,11 @@ Listagens são paginadas. IDs são numéricos; enviar um valor não numérico de
 | Método | Rota | Descrição |
 |---|---|---|
 | POST | `/users` | Cria um usuário (rota aberta) |
-| GET | `/users/{id}` | Busca usuário por ID |
-| GET | `/users` | Lista usuários |
-| GET | `/users/search?name=` | Busca usuários por nome |
-| PUT | `/users/{id}` | Atualiza o próprio usuário |
-| DELETE | `/users/{id}` | Remove o próprio usuário |
+| GET | `/users/{id}` | Busca a sua conta (de outra pessoa: `403`) |
+| GET | `/users` | Devolve só a sua conta (não há lista pública) |
+| GET | `/users/search?username=` | Procura entre a sua conta apenas |
+| PUT | `/users/{id}` | Atualiza a sua conta |
+| DELETE | `/users/{id}` | Apaga a sua conta, chaves, perfil, escutas e playlists |
 
 </details>
 
@@ -130,9 +140,9 @@ Listagens são paginadas. IDs são numéricos; enviar um valor não numérico de
 | Método | Rota | Descrição |
 |---|---|---|
 | POST | `/profiles` | Cria o seu perfil |
-| GET | `/profiles/{id}` | Busca perfil por ID |
-| GET | `/profiles/by-user/{userId}` | Busca o perfil de um usuário |
-| GET | `/profiles` | Lista perfis |
+| GET | `/profiles/{id}` | Busca o seu perfil (de outra pessoa: `403`) |
+| GET | `/profiles/by-user/{userId}` | Busca o seu perfil pelo seu `userId` |
+| GET | `/profiles` | Devolve só o seu perfil |
 | PUT | `/profiles/{id}` | Atualiza o seu perfil |
 | DELETE | `/profiles/{id}` | Remove o seu perfil |
 
@@ -147,8 +157,8 @@ Listagens são paginadas. IDs são numéricos; enviar um valor não numérico de
 | GET | `/artists/{id}` | Busca artista por ID |
 | GET | `/artists` | Lista artistas |
 | GET | `/artists/search?genre=` | Busca artistas por gênero |
-| PUT | `/artists/{id}` | Atualiza artista |
-| DELETE | `/artists/{id}` | Remove artista |
+| PUT | `/artists/{id}` | Atualiza artista (só quem cadastrou) |
+| DELETE | `/artists/{id}` | Remove artista (só quem cadastrou, e se não tiver faixas) |
 
 </details>
 
@@ -160,9 +170,9 @@ Listagens são paginadas. IDs são numéricos; enviar um valor não numérico de
 | POST | `/tracks` | Cria uma faixa (ligada a um artista) |
 | GET | `/tracks/{id}` | Busca faixa por ID |
 | GET | `/tracks` | Lista faixas |
-| GET | `/tracks/search?title=` | Busca faixas por título |
-| PUT | `/tracks/{id}` | Atualiza faixa |
-| DELETE | `/tracks/{id}` | Remove faixa |
+| GET | `/tracks/search?name=` | Busca faixas por nome |
+| PUT | `/tracks/{id}` | Atualiza faixa (só quem cadastrou) |
+| DELETE | `/tracks/{id}` | Remove faixa (só quem cadastrou, e se não tiver escutas nem estiver em playlists) |
 
 </details>
 
@@ -201,10 +211,12 @@ Listagens são paginadas. IDs são numéricos; enviar um valor não numérico de
 
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/stats/top-tracks?userId=&limit=` | Faixas mais ouvidas de sempre (`limit` de 1 a 50, padrão 10) |
-| GET | `/stats/top-tracks/monthly?userId=&limit=` | Faixas mais ouvidas do mês atual (`limit` de 1 a 50, padrão 3) |
+| GET | `/stats/top-tracks?userId=&limit=` | Suas faixas mais ouvidas de sempre (privado; `limit` de 1 a 50, padrão 10) |
+| GET | `/stats/top-tracks/monthly?userId=&limit=` | Suas faixas mais ouvidas do mês atual (privado; `limit` de 1 a 50, padrão 3) |
+| GET | `/stats/community/comparison?userId=&limit=` | Compara as suas faixas com a comunidade: % de ouvintes da faixa e em que top % você está |
+| GET | `/stats/community/top-tracks?limit=` | Top global: faixas com mais ouvintes e a % de ouvintes da comunidade |
 
-Em caso de empate, vale quem tem mais tempo total ouvido.
+Em caso de empate, vale quem tem mais tempo total ouvido. As rotas da comunidade devolvem só números agregados, sem nome, e-mail ou ID de ninguém.
 
 </details>
 
@@ -271,15 +283,18 @@ Todo erro vem no mesmo formato:
 | 400 | Entrada inválida: campo faltando, tipo errado, JSON mal formado, data inválida, parâmetro fora do limite ou versão desconhecida |
 | 401 | Chave ausente, inválida ou revogada; usuário ou senha errados |
 | 403 | A chave é válida, mas o recurso é de outro usuário |
-| 404 | O ID é válido, mas não existe |
-| 409 | Conflito: nome de usuário ou e-mail repetido, perfil já existente, registro com dependentes |
+| 404 | O ID é válido, mas não existe, ou a rota não existe |
+| 405 | Método não permitido na rota (por exemplo, `PATCH`) |
+| 406 | `Accept` pede um formato que não seja JSON |
+| 409 | Conflito: nome de usuário ou e-mail repetido, perfil já existente, faixa repetida no artista, artista ou faixa que ainda tem dependentes |
+| 415 | `Content-Type` diferente de `application/json` |
 | 422 | `X-Idempotency-Key` reaproveitada em outro pedido |
 | 429 | Limite de requisições excedido |
 | 500 | Erro inesperado |
 
 ### CORS
 
-Navegadores só chamam a API a partir das origens configuradas em `cors.allowed-origins` (por padrão, endereços locais de desenvolvimento). Para outro endereço, defina a variável `CORS_ALLOWED_ORIGINS`. O aplicativo de celular não é afetado.
+Navegadores só chamam a API a partir das origens configuradas em `cors.allowed-origins` (por padrão, o GitHub Pages do projeto e endereços locais de desenvolvimento). Para outro endereço, defina a variável `CORS_ALLOWED_ORIGINS`. O aplicativo de celular não é afetado.
 
 ### Tecnologias
 
