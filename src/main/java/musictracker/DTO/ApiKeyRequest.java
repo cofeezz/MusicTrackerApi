@@ -13,6 +13,7 @@ public record ApiKeyRequest(
         String username,
 
         @NotBlank(message = "A senha não pode estar em branco")
+        @Size(max = 100, message = "A senha deve ter no máximo 100 caracteres")
         @Schema(description = "Senha da conta", example = "senha123")
         String password,
 

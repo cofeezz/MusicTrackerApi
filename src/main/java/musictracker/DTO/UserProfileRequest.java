@@ -16,6 +16,7 @@ public record UserProfileRequest(
         // Não valida se a URL realmente existe/responde (isso exigiria uma
         // chamada de rede), só o formato básico — suficiente para barrear
         // valores claramente inválidos como "123" ou "<script>".
+        @Size(max = 255, message = "A URL do avatar deve ter no máximo 255 caracteres")
         @Pattern(
                 regexp = "^(https?://).+",
                 message = "A URL do avatar deve começar com http:// ou https://"

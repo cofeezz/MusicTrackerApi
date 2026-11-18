@@ -39,7 +39,7 @@ public class ApiKeyService {
         String name = request.name() == null || request.name().isBlank() ? "default" : request.name().trim();
         String rawKey = ApiKeys.generate();
         ApiKey saved = apiKeyRepository.save(new ApiKey(name, ApiKeys.hash(rawKey), ApiKeys.displayPrefix(rawKey), user));
-        return new ApiKeyCreatedResponse(saved.getId(), saved.getName(), saved.getKeyPrefix(), rawKey, saved.getCreatedAt());
+        return new ApiKeyCreatedResponse(saved.getId(), user.getId(), saved.getName(), saved.getKeyPrefix(), rawKey, saved.getCreatedAt());
     }
 
     @Transactional(readOnly = true)

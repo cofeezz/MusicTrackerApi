@@ -25,7 +25,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
 @RestController
 @RequestMapping("/artists")
-@Tag(name = "Artistas", description = "Artistas/bandas, com o enum Genre")
+@Tag(name = "Artistas", description = "Artistas/bandas, com o enum Genre. Catálogo compartilhado: todos veem, só quem cadastrou altera ou remove.")
 public class ArtistController {
 
     private final ArtistService artistService;

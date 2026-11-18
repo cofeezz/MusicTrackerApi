@@ -24,7 +24,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
 @RestController
 @RequestMapping("/listens")
-@Tag(name = "Escutas", description = "Registros de escuta — ligam User e Track (duas relações Many-to-One)")
+@Tag(name = "Escutas", description = "Registros de escuta **privados** — ligam User e Track. Só o dono vê e altera. Poderão ser usados, de forma agregada e anônima, na comparação com a comunidade.")
 public class ListenController {
 
     private final ListenService listenService;
@@ -40,7 +40,10 @@ public class ListenController {
             summary = "Registrar uma nova escuta",
             description = "'userId' e 'trackId' precisam apontar para registros existentes. "
                     + "'listenedAt' é opcional (se omitido, usa o momento atual) e não pode ser uma "
-                    + "data futura. 'durationSeconds' é opcional e, se enviado, precisa ser positivo."
+                    + "data futura. 'durationSeconds' é opcional e, se enviado, precisa ser positivo. "
+                    + "**Aviso de privacidade:** as escutas são privadas (só o dono as vê), mas poderão ser "
+                    + "usadas, de forma agregada e anônima, para comparar o ranking com o da comunidade; "
+                    + "nenhum usuário é identificado nessas comparações."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Escuta registrada"),

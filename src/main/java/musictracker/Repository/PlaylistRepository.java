@@ -11,4 +11,6 @@ public interface PlaylistRepository extends JpaRepository<Playlist, Long> {
     Page<Playlist> findByNameContainingIgnoreCase(String name, Pageable pageable);
 
     boolean existsByTracksId(Long trackId);
+
+    void deleteByOwnerId(Long ownerId);
 }

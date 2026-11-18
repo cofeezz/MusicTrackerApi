@@ -24,7 +24,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
 @RestController
 @RequestMapping("/profiles")
-@Tag(name = "Perfis", description = "Perfis de usuário (bio, avatar) — relação One-to-One com User")
+@Tag(name = "Perfis", description = "Perfis de usuário (bio, avatar) — relação One-to-One com User. **Privados:** só o dono vê e altera o próprio perfil.")
 public class UserProfileController {
 
     private final UserProfileService userProfileService;
@@ -56,7 +56,7 @@ public class UserProfileController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Buscar um perfil por ID")
+    @Operation(summary = "Buscar um perfil por ID", description = "**Privado:** só o dono do perfil pode vê-lo; o de outro usuário resulta em 403.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Perfil encontrado"),
             @ApiResponse(responseCode = "400", description = "O ID informado não é um número válido"),
