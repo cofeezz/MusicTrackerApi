@@ -24,7 +24,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
 @RestController
 @RequestMapping("/playlists")
-@Tag(name = "Playlists", description = "Playlists — relação Many-to-Many com Track")
+@Tag(name = "Playlists", description = "Playlists — relação Many-to-Many com Track. Todos veem (com o nome de usuário do dono); só o dono altera.")
 public class PlaylistController {
 
     private final PlaylistService playlistService;

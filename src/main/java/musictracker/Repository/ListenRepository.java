@@ -1,5 +1,6 @@
 package musictracker.Repository;
 
+import musictracker.DTO.CommunityTrackRow;
 import musictracker.DTO.TopTrackDTO;
 import musictracker.Entity.Listen;
 import org.springframework.data.domain.Page;
@@ -29,4 +30,23 @@ public interface ListenRepository extends JpaRepository<Listen, Long> {
     Page<Listen> findByUserId(Long userId, Pageable pageable);
 
     boolean existsByTrackId(Long trackId);
+
+    void deleteByUserId(Long userId);
+
+    @Query("SELECT COUNT(DISTINCT l.user.id) FROM Listen l")
+    long countListeners();
+
+    @Query("SELECT COUNT(l) FROM Listen l WHERE l.track.id = :trackId GROUP BY l.user.id")
+    List<Long> countListensPerListener(@Param("trackId") Long trackId);
+
+    @Query("""
+            SELECT new musictracker.DTO.CommunityTrackRow(
+                t.id, t.name, a.name, COUNT(DISTINCT l.user.id))
+            FROM Listen l
+            JOIN l.track t
+            JOIN t.artist a
+            GROUP BY t.id, t.name, a.name
+            ORDER BY COUNT(DISTINCT l.user.id) DESC, COUNT(l) DESC, t.id ASC
+            """)
+    List<CommunityTrackRow> findCommunityTopTracks(Pageable pageable);
 }

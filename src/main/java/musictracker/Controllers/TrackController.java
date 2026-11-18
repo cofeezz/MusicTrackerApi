@@ -24,7 +24,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
 @RestController
 @RequestMapping("/tracks")
-@Tag(name = "Faixas", description = "Faixas/músicas — relação Many-to-One com Artist")
+@Tag(name = "Faixas", description = "Faixas/músicas — relação Many-to-One com Artist. Catálogo compartilhado: todos veem, só quem cadastrou altera ou remove.")
 public class TrackController {
 
     private final TrackService trackService;

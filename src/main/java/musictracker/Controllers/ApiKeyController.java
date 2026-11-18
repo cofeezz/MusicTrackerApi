@@ -25,7 +25,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
 @RestController
 @RequestMapping("/api-keys")
-@Tag(name = "Chaves de API", description = "Geração e gerenciamento das chaves usadas no cabeçalho X-API-Key")
+@Tag(name = "Chaves de API", description = "Geração e gerenciamento das chaves usadas no cabeçalho X-API-Key. Só o dono vê as próprias chaves.")
 public class ApiKeyController {
 
     private final ApiKeyService apiKeyService;

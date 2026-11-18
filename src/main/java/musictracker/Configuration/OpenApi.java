@@ -58,9 +58,28 @@ public class OpenApi {
 
                                 - **Artistas e faixas:** qualquer um vê, mas só quem cadastrou pode alterar ou remover (`403`); um artista com faixas, ou uma faixa com escutas ou em playlists, não pode ser removido (`409`); o mesmo artista não pode ter duas faixas com o mesmo nome (`409`)
 
-                                - **Dados pessoais:** conta, perfil e escutas só podem ser vistos e alterados pelo próprio dono da chave; outro usuário recebe `403 Forbidden`
+                                - **Dados pessoais (privados):** conta (inclusive o e-mail), perfil, escutas e rankings só podem ser vistos e alterados pelo próprio dono da chave; outro usuário recebe `403 Forbidden` (detalhes na seção *Privacidade e uso dos seus dados*)
 
                                 Chave ausente, inválida ou revogada resulta em `401 Unauthorized`.
+
+                                ## Privacidade e uso dos seus dados
+
+                                **Só você vê (privado):**
+
+                                - o seu **e-mail** e a sua senha (a senha nunca é devolvida e fica guardada só como hash)
+
+                                - as suas **escutas** e o seu **ranking pessoal**: `/listens`, `/stats/top-tracks` e `/stats/top-tracks/monthly`
+
+                                - o seu **perfil** (`/profiles`) e as suas **chaves de API** (`/api-keys`)
+
+                                Quem tentar acessar esses dados de outra pessoa recebe `403 Forbidden`. **Não existe lista pública de usuários:** `GET /users` e `GET /users/search` devolvem apenas a sua própria conta, então o e-mail de ninguém é exposto.
+
+                                **Aviso importante: comparação com a comunidade.** Ao criar a conta e usar a API, você concorda que as suas escutas poderão ser usadas, de forma **agregada e anônima**, para comparar o seu ranking com o da comunidade, como o Spotify faz ao mostrar "você está entre os 5% que mais ouvem esta música". Isso só aparece como **porcentagens e contagens**, em `GET /stats/community/comparison` e `GET /stats/community/top-tracks`. **Nunca** é mostrado nome, e-mail, ID ou escuta individual de outra pessoa. Observação: com poucos usuários cadastrados, uma porcentagem é mais fácil de associar a alguém (por exemplo, com 2 usuários, 50% já indica que a outra pessoa ouviu a faixa).
+
+                                **Público (qualquer um vê):** o catálogo de artistas e faixas (nome e gênero) e as playlists, que mostram o **nome de usuário** do dono (nunca o e-mail).
+
+                                **Apagar a conta:** `DELETE /users/{id}` apaga a conta, as chaves de API, o perfil, as escutas e as playlists do usuário. Os artistas e as faixas que ele cadastrou continuam no catálogo.
+
 
                                 ## Rate limit
 
@@ -149,7 +168,7 @@ public class OpenApi {
 
                                 ## Formato de erro
 
-                                Qualquer erro (400, 401, 403, 404, 409, 422, 429 ou 500) é devolvido sempre no mesmo formato — o schema
+                                Qualquer erro (400, 401, 403, 404, 405, 406, 409, 415, 422, 429 ou 500) é devolvido sempre no mesmo formato — o schema
                                 **`APIError`**:
 
                                 - `timestamp` — momento do erro
@@ -179,11 +198,13 @@ public class OpenApi {
 
                                 5. `POST /profiles` (com o `userId` do passo 1) — criar o perfil
 
-                                6. `POST /listens` (com `userId` e `trackId`) — registrar uma escuta
+                                6. `POST /listens` (com `userId` e `trackId`; o `userId` vem na resposta do passo 2) — registrar uma escuta
 
                                 7. `POST /playlists`, depois `POST /playlists/{id}/tracks/{trackId}` — montar uma playlist
 
-                                8. `GET /stats/top-tracks?userId=` e `GET /stats/top-tracks/monthly?userId=` — ver os rankings
+                                8. `GET /stats/top-tracks?userId=` e `GET /stats/top-tracks/monthly?userId=` — ver os seus rankings (privados)
+
+                                9. `GET /stats/community/comparison?userId=` e `GET /stats/community/top-tracks` — comparar com a comunidade (porcentagens anônimas)
                                 """
                                 .replace("{{CAPACITY}}", String.valueOf(capacity))
                                 .replace("{{SECONDS}}", String.valueOf(Math.round(1 / refillPerSecond)))))
@@ -193,14 +214,15 @@ public class OpenApi {
                         .name("X-API-Key")
                         .description("Chave gerada em POST /api-keys")))
                 .tags(List.of(
-                        new Tag().name("Chaves de API"),
-                        new Tag().name("Usuários"),
-                        new Tag().name("Perfis"),
-                        new Tag().name("Artistas"),
-                        new Tag().name("Faixas"),
-                        new Tag().name("Playlists"),
-                        new Tag().name("Escutas"),
-                        new Tag().name("Stats")
+                        new Tag().name("Chaves de API").description("Geração e gerenciamento das chaves usadas no cabeçalho X-API-Key. Só o dono vê as próprias chaves."),
+                        new Tag().name("Usuários").description("Contas de usuário (username, email, senha). **Privado:** o e-mail só é visível ao próprio dono; não existe lista pública de usuários. Ao criar a conta, você concorda que suas escutas poderão ser usadas de forma agregada e anônima para comparar rankings (veja a seção Privacidade)."),
+                        new Tag().name("Perfis").description("Perfis de usuário (bio, avatar) — relação One-to-One com User. **Privados:** só o dono vê e altera o próprio perfil."),
+                        new Tag().name("Artistas").description("Artistas/bandas, com o enum Genre. Catálogo compartilhado: todos veem, só quem cadastrou altera ou remove."),
+                        new Tag().name("Faixas").description("Faixas/músicas — relação Many-to-One com Artist. Catálogo compartilhado: todos veem, só quem cadastrou altera ou remove."),
+                        new Tag().name("Playlists").description("Playlists — relação Many-to-Many com Track. Todos veem (com o nome de usuário do dono); só o dono altera."),
+                        new Tag().name("Escutas").description("Registros de escuta **privados** — ligam User e Track. Só o dono vê e altera. Poderão ser usados, de forma agregada e anônima, na comparação com a comunidade."),
+                        new Tag().name("Stats").description("Rankings pessoais e **privados** de faixas mais ouvidas (histórico completo e mês corrente). Só o dono vê o próprio ranking."),
+                        new Tag().name("Comunidade").description("Estatísticas **agregadas e anônimas** (porcentagens e contagens, sem nomes, e-mails ou IDs de usuários) para comparar o seu ranking com o da comunidade, como no Spotify.")
                 ));
     }
 

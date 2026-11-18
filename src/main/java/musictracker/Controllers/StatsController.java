@@ -27,7 +27,7 @@ import java.util.stream.IntStream;
 
 @Validated
 @RestController
-@Tag(name = "Stats", description = "Rankings pessoais de faixas mais ouvidas (histórico completo e mês corrente)")
+@Tag(name = "Stats", description = "Rankings pessoais e **privados** de faixas mais ouvidas (histórico completo e mês corrente). Só o dono vê o próprio ranking.")
 public class StatsController {
 
     private final StatsService statsService;
@@ -39,9 +39,11 @@ public class StatsController {
     @GetMapping("/stats/top-tracks")
     @Operation(
             summary = "Top N faixas mais ouvidas de um usuário (histórico completo)",
-            description = "Considera todas as escutas do usuário informado e ordena por número de "
-                    + "vezes ouvida; em empate, por tempo total ouvido e depois pelo ID da faixa. "
-                    + "É recalculado a cada chamada."
+            description = "**Privado:** só o dono da chave de API vê o próprio ranking; pedir o ranking de "
+                    + "outro usuário resulta em 403. Considera todas as escutas do usuário informado e ordena "
+                    + "por número de vezes ouvida; em empate, por tempo total ouvido e depois pelo ID da faixa. "
+                    + "É recalculado a cada chamada. Para comparar este ranking com a comunidade "
+                    + "(porcentagens anônimas), veja a seção 'Comunidade'."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Ranking retornado com sucesso. A versão 1 devolve "
@@ -51,6 +53,8 @@ public class StatsController {
                             schema = @Schema(oneOf = {TopTrackDTO.class, TopTrackV2Response.class})))),
             @ApiResponse(responseCode = "400", description = "'userId' ausente, 'limit' inválido "
                     + "(inteiro entre 1 e 50) ou versão da API não suportada"),
+            @ApiResponse(responseCode = "403", description = "O userId não é o dono da chave de API: "
+                    + "o ranking é privado"),
             @ApiResponse(responseCode = "404", description = "Não existe usuário com esse ID")
     })
     public ResponseEntity<?> topTracks(
@@ -69,7 +73,8 @@ public class StatsController {
     @GetMapping("/stats/top-tracks/monthly")
     @Operation(
             summary = "Top N faixas mais ouvidas de um usuário no mês corrente",
-            description = "Mesma lógica do ranking completo, considerando apenas escutas a partir "
+            description = "**Privado:** só o dono da chave de API vê o próprio ranking (outro usuário recebe 403). "
+                    + "Mesma lógica do ranking completo, considerando apenas escutas a partir "
                     + "do primeiro dia do mês atual (00:00)."
     )
     @ApiResponses({
@@ -80,6 +85,8 @@ public class StatsController {
                             schema = @Schema(oneOf = {TopTrackDTO.class, TopTrackV2Response.class})))),
             @ApiResponse(responseCode = "400", description = "'userId' ausente, 'limit' inválido "
                     + "(inteiro entre 1 e 50) ou versão da API não suportada"),
+            @ApiResponse(responseCode = "403", description = "O userId não é o dono da chave de API: "
+                    + "o ranking é privado"),
             @ApiResponse(responseCode = "404", description = "Não existe usuário com esse ID")
     })
     public ResponseEntity<?> topTracksMonthly(

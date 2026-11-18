@@ -3,12 +3,14 @@ package musictracker.DTO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import musictracker.Entity.Genre;
 
 @Schema(description = "Dados para criar ou atualizar um artista")
 public record ArtistRequest(
 
         @NotBlank(message = "O nome não pode estar em branco")
+        @Size(max = 255, message = "O nome deve ter no máximo 255 caracteres")
         @Schema(description = "Nome do artista/banda", example = "Phoenix")
         String name,
 

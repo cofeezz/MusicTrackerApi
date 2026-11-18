@@ -15,12 +15,13 @@ public record UserRequest(
 
         @NotBlank(message = "O email não pode estar em branco")
         @Email(message = "Email inválido")
+        @Size(max = 255, message = "O email deve ter no máximo 255 caracteres")
         @Schema(description = "Email do usuário", example = "cof@example.com")
         String email,
 
         @NotBlank(message = "A senha não pode estar em branco")
-        @Size(min = 6, message = "A senha deve ter no mínimo 6 caracteres")
-        @Schema(description = "Senha (mínimo 6 caracteres)", example = "senha123")
+        @Size(min = 6, max = 100, message = "A senha deve ter entre 6 e 100 caracteres")
+        @Schema(description = "Senha (de 6 a 100 caracteres)", example = "senha123")
         String password
 ) {
 }
