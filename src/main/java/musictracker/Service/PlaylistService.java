@@ -5,8 +5,10 @@ import musictracker.DTO.PlaylistResponse;
 import musictracker.DTO.TrackResponse;
 import musictracker.Entity.Playlist;
 import musictracker.Entity.Track;
+import musictracker.Exception.ForbiddenException;
 import musictracker.Exception.ResourceNotFoundException;
 import musictracker.Repository.PlaylistRepository;
+import musictracker.Security.AuthenticatedUser;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -20,14 +22,16 @@ public class PlaylistService {
 
     private final PlaylistRepository playlistRepository;
     private final TrackService trackService;
+    private final UserService userService;
 
-    public PlaylistService(PlaylistRepository playlistRepository, TrackService trackService) {
+    public PlaylistService(PlaylistRepository playlistRepository, TrackService trackService, UserService userService) {
         this.playlistRepository = playlistRepository;
         this.trackService = trackService;
+        this.userService = userService;
     }
 
     public PlaylistResponse create(PlaylistRequest request) {
-        Playlist playlist = new Playlist(request.name());
+        Playlist playlist = new Playlist(request.name(), userService.getEntityOrThrow(AuthenticatedUser.requireId()));
         return toResponse(playlistRepository.save(playlist));
     }
 
@@ -47,29 +51,26 @@ public class PlaylistService {
     }
 
     public PlaylistResponse update(Long id, PlaylistRequest request) {
-        Playlist playlist = getEntityOrThrow(id);
+        Playlist playlist = getOwnedOrThrow(id);
         playlist.setName(request.name());
         return toResponse(playlistRepository.save(playlist));
     }
 
     public PlaylistResponse addTrack(Long id, Long trackId) {
-        Playlist playlist = getEntityOrThrow(id);
+        Playlist playlist = getOwnedOrThrow(id);
         Track track = trackService.getEntityOrThrow(trackId);
         playlist.getTracks().add(track);
         return toResponse(playlistRepository.save(playlist));
     }
 
     public PlaylistResponse removeTrack(Long id, Long trackId) {
-        Playlist playlist = getEntityOrThrow(id);
+        Playlist playlist = getOwnedOrThrow(id);
         playlist.getTracks().removeIf(t -> t.getId().equals(trackId));
         return toResponse(playlistRepository.save(playlist));
     }
 
     public void delete(Long id) {
-        if (!playlistRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Playlist não encontrada com o ID: " + id);
-        }
-        playlistRepository.deleteById(id);
+        playlistRepository.delete(getOwnedOrThrow(id));
     }
 
     private Playlist getEntityOrThrow(Long id) {
@@ -77,10 +78,19 @@ public class PlaylistService {
                 .orElseThrow(() -> new ResourceNotFoundException("Playlist não encontrada com o ID: " + id));
     }
 
+    private Playlist getOwnedOrThrow(Long id) {
+        Playlist playlist = getEntityOrThrow(id);
+        if (!playlist.getOwner().getId().equals(AuthenticatedUser.requireId())) {
+            throw new ForbiddenException("Apenas o dono da playlist pode alterá-la.");
+        }
+        return playlist;
+    }
+
     private PlaylistResponse toResponse(Playlist playlist) {
         List<TrackResponse> tracks = playlist.getTracks().stream()
                 .map(TrackService::toResponseStatic)
                 .toList();
-        return new PlaylistResponse(playlist.getId(), playlist.getName(), tracks);
+        return new PlaylistResponse(playlist.getId(), playlist.getName(),
+                playlist.getOwner().getId(), playlist.getOwner().getUsername(), tracks);
     }
 }

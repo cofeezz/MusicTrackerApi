@@ -8,6 +8,7 @@ import musictracker.Entity.Track;
 import musictracker.Entity.User;
 import musictracker.Exception.ResourceNotFoundException;
 import musictracker.Repository.ListenRepository;
+import musictracker.Security.AuthenticatedUser;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -29,10 +30,8 @@ public class ListenService {
         this.trackService = trackService;
     }
 
-    // Espera um JSON do tipo { "userId": 1, "trackId": 1, "durationSeconds": 180 }
-    // "listenedAt" é opcional: se não vier, usamos o momento atual (é o
-    // check-in rápido "acabei de ouvir essa música").
     public ListenResponse create(ListenRequest request) {
+        AuthenticatedUser.requireSame(request.userId(), "Você só pode registrar escutas em seu próprio nome.");
         User user = userService.getEntityOrThrow(request.userId());
         Track track = trackService.getEntityOrThrow(request.trackId());
         LocalDateTime listenedAt = request.listenedAt() != null ? request.listenedAt() : LocalDateTime.now();
@@ -45,22 +44,26 @@ public class ListenService {
     public ListenResponse findById(Long id) {
         Listen listen = listenRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Escuta não encontrada com o ID: " + id));
+        AuthenticatedUser.requireSame(listen.getUser().getId(), "Você só pode ver as suas próprias escutas.");
         return toResponse(listen);
     }
 
     @Transactional(readOnly = true)
     public Page<ListenResponse> findAll(Pageable pageable) {
-        return listenRepository.findAll(pageable).map(this::toResponse);
+        return listenRepository.findByUserId(AuthenticatedUser.requireId(), pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
     public Page<ListenResponse> findByUser(Long userId, Pageable pageable) {
+        AuthenticatedUser.requireSame(userId, "Você só pode ver as suas próprias escutas.");
         return listenRepository.findByUserId(userId, pageable).map(this::toResponse);
     }
 
     public ListenResponse update(Long id, ListenRequest request) {
+        AuthenticatedUser.requireSame(request.userId(), "Você só pode alterar as suas próprias escutas.");
         Listen listen = listenRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Escuta não encontrada com o ID: " + id));
+        AuthenticatedUser.requireSame(listen.getUser().getId(), "Você só pode alterar as suas próprias escutas.");
 
         listen.setUser(userService.getEntityOrThrow(request.userId()));
         listen.setTrack(trackService.getEntityOrThrow(request.trackId()));
@@ -71,10 +74,10 @@ public class ListenService {
     }
 
     public void delete(Long id) {
-        if (!listenRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Escuta não encontrada com o ID: " + id);
-        }
-        listenRepository.deleteById(id);
+        Listen listen = listenRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Escuta não encontrada com o ID: " + id));
+        AuthenticatedUser.requireSame(listen.getUser().getId(), "Você só pode remover as suas próprias escutas.");
+        listenRepository.delete(listen);
     }
 
     private ListenResponse toResponse(Listen listen) {

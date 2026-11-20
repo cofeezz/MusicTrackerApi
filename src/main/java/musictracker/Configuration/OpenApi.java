@@ -106,12 +106,14 @@ public class OpenApi {
 
                                 ## Idempotência
 
-                                Todo `POST` aceita o cabeçalho opcional `X-Idempotency-Key`, com uma chave
+                                Todo `POST` exige o cabeçalho obrigatório `X-Idempotency-Key`, com uma chave
                                 única escolhida pelo cliente (ex: um UUID, até 100 caracteres). Ele evita que a
                                 mesma operação seja processada duas vezes por acidente, como um clique duplo
                                 ou uma nova tentativa automática do app após uma falha de rede.
 
-                                Como a API se comporta quando o cabeçalho é enviado:
+                                Como a API se comporta:
+
+                                - **Cabeçalho ausente ou vazio** — `400 Bad Request`: a chave é obrigatória em todo `POST`
 
                                 - **Chave nova** — a requisição é processada normalmente e a resposta de sucesso (2xx) fica guardada
 
@@ -121,9 +123,9 @@ public class OpenApi {
 
                                 - **Mesma chave enquanto a primeira ainda está sendo processada** — `409 Conflict`
 
-                                As chaves ficam guardadas por 24 horas e valem por cliente (IP). Respostas de erro
-                                não ficam guardadas: se a primeira tentativa falhou, o cliente pode corrigir e
-                                repetir com a mesma chave. Sem o cabeçalho, o `POST` funciona como sempre.
+                                As chaves ficam guardadas por 24 horas e valem por usuário autenticado (ou por IP, nas
+                                rotas abertas). Respostas de erro não ficam guardadas: se a primeira tentativa
+                                falhou, o cliente pode corrigir e repetir com a mesma chave.
 
                                 ## Versionamento
 
@@ -269,10 +271,20 @@ public class OpenApi {
                 }
                 pathItem.getPost().addParametersItem(new HeaderParameter()
                         .name("X-Idempotency-Key")
-                        .required(false)
-                        .description("Chave única da operação (ex: um UUID, até 100 caracteres). Repetir o mesmo "
-                                + "POST com a mesma chave devolve a resposta original sem criar nada de novo.")
+                        .required(true)
+                        .description("OBRIGATÓRIO. Chave única da operação (ex: um UUID, até 100 caracteres). Use uma "
+                                + "chave nova a cada operação; repetir o mesmo POST com a mesma chave devolve a "
+                                + "resposta original sem criar nada de novo.")
                         .schema(new StringSchema()));
+                ApiResponse badRequest = pathItem.getPost().getResponses().get("400");
+                String missingKey = "o cabeçalho X-Idempotency-Key está ausente, vazio ou tem mais de 100 caracteres";
+                if (badRequest == null) {
+                    pathItem.getPost().getResponses().addApiResponse("400", new ApiResponse()
+                            .content(apiErrorContent())
+                            .description("Requisição inválida: " + missingKey));
+                } else {
+                    badRequest.setDescription(badRequest.getDescription() + ". Também ocorre quando " + missingKey);
+                }
                 ApiResponse conflict = pathItem.getPost().getResponses().get("409");
                 String processing = "Já existe uma requisição em processamento com esta X-Idempotency-Key";
                 if (conflict == null) {

@@ -4,20 +4,34 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import musictracker.Exception.FilterErrorWriter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+// Filtro que aplica o rate limit (token bucket) por IP em todas as requisições.
+//
+// Ele roda ANTES do DispatcherServlet, então as recusas dele não passam pelo
+// GlobalExceptionHandler — por isso o 429 é escrito pelo FilterErrorWriter, no
+// mesmo formato do APIError (timestamp, status, error, message, path).
+//
+// Cabeçalhos devolvidos em toda resposta:
+//   X-RateLimit-Limit      -> capacidade do balde (rajada máxima)
+//   X-RateLimit-Remaining  -> fichas que ainda restam
+// E, quando bloqueia (429):
+//   Retry-After            -> segundos até a próxima ficha estar disponível
+// Ordem dos filtros da API: 1) rate limit, depois (nas próximas etapas)
+// 2) chave de API e 3) idempotência. O rate limit vem primeiro para barrar
+// excesso de requisições antes de gastar qualquer outro processamento.
 @Component
+@Order(1)
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final long CLEANUP_INTERVAL_NANOS = TimeUnit.MINUTES.toNanos(1);
@@ -28,16 +42,20 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final boolean enabled;
     private final long capacity;
     private final double refillPerSecond;
+    private final boolean trustForwardedFor;
 
     public RateLimitFilter(
             @Value("${ratelimit.enabled:true}") boolean enabled,
             @Value("${ratelimit.capacity:20}") long capacity,
-            @Value("${ratelimit.refill-per-second:1}") double refillPerSecond) {
+            @Value("${ratelimit.refill-per-second:0.2}") double refillPerSecond,
+            @Value("${ratelimit.trust-forwarded-for:false}") boolean trustForwardedFor) {
         this.enabled = enabled;
         this.capacity = capacity;
         this.refillPerSecond = refillPerSecond;
+        this.trustForwardedFor = trustForwardedFor;
     }
 
+    // A documentação (Swagger UI e o JSON do OpenAPI) não entra na contagem
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
@@ -50,7 +68,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         removeIdleBucketsIfDue();
 
-        TokenBucket bucket = buckets.computeIfAbsent(request.getRemoteAddr(),
+        TokenBucket bucket = buckets.computeIfAbsent(ClientIp.of(request, trustForwardedFor),
                 ip -> new TokenBucket(capacity, refillPerSecond, System::nanoTime));
         TokenBucket.Result result = bucket.tryConsume();
 
@@ -63,34 +81,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         response.setHeader("Retry-After", String.valueOf(result.retryAfterSeconds()));
-        writeTooManyRequests(request, response, result.retryAfterSeconds());
+        FilterErrorWriter.write(request, response, HttpStatus.TOO_MANY_REQUESTS,
+                "Limite de requisições excedido. Tente novamente em "
+                        + result.retryAfterSeconds() + " segundo(s).");
     }
 
-    private void writeTooManyRequests(HttpServletRequest request, HttpServletResponse response,
-                                      long retryAfterSeconds) throws IOException {
-        HttpStatus status = HttpStatus.TOO_MANY_REQUESTS;
-        String message = "Limite de requisições excedido. Tente novamente em "
-                + retryAfterSeconds + " segundo(s).";
-
-        String body = """
-                {"timestamp":"%s","status":%d,"error":"%s","message":"%s","path":"%s"}"""
-                .formatted(
-                        LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS),
-                        status.value(),
-                        status.name(),
-                        escapeJson(message),
-                        escapeJson(request.getRequestURI()));
-
-        response.setStatus(status.value());
-        response.setContentType("application/json");
-        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        response.getWriter().write(body);
-    }
-
-    private static String escapeJson(String value) {
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
-
+    // Faxina: de tempos em tempos descarta os baldes de clientes que já voltaram
+    // ao estado cheio, para o mapa não crescer para sempre com IPs antigos.
     private void removeIdleBucketsIfDue() {
         long now = System.nanoTime();
         long last = lastCleanup.get();

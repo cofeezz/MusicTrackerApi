@@ -8,6 +8,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import musictracker.Exception.FilterErrorWriter;
+import musictracker.RateLimit.ClientIp;
+import musictracker.Security.AuthenticatedUser;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -83,12 +85,15 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
     private final boolean enabled;
     private final long ttlNanos;
+    private final boolean trustForwardedFor;
 
     public IdempotencyFilter(
             @Value("${idempotency.enabled:true}") boolean enabled,
-            @Value("${idempotency.ttl-hours:24}") long ttlHours) {
+            @Value("${idempotency.ttl-hours:24}") long ttlHours,
+            @Value("${ratelimit.trust-forwarded-for:false}") boolean trustForwardedFor) {
         this.enabled = enabled;
         this.ttlNanos = TimeUnit.HOURS.toNanos(ttlHours);
+        this.trustForwardedFor = trustForwardedFor;
     }
 
     // Só POST com o cabeçalho presente entra na lógica de idempotência
@@ -116,8 +121,9 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         byte[] body = request.getInputStream().readAllBytes();
         String fingerprint = fingerprint(request.getRequestURI(), body);
 
-        // A chave é por cliente (IP + chave): dois clientes podem usar a mesma chave
-        String scopedKey = request.getRemoteAddr() + "|" + key;
+        Object userId = request.getAttribute(AuthenticatedUser.ATTRIBUTE);
+        String owner = userId != null ? "user-" + userId : ClientIp.of(request, trustForwardedFor);
+        String scopedKey = owner + "|" + key;
 
         Entry fresh = new Entry(fingerprint);
         Entry existing = entries.putIfAbsent(scopedKey, fresh);

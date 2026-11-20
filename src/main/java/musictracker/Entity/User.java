@@ -15,17 +15,14 @@ public class User {
 
     @NotBlank(message = "O nome de usuário não pode estar em branco")
     @Size(min = 3, max = 50, message = "O nome de usuário deve ter entre 3 e 50 caracteres")
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String username;
 
     @NotBlank(message = "O email não pode estar em branco")
     @Email(message = "Email inválido")
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String email;
 
-    // Sem hashing/criptografia aqui de propósito: isso é só o campo que o
-    // requisito pede para existir. Se o projeto tiver autenticação de
-    // verdade depois, troque por um hash (BCrypt) antes de salvar.
     @NotBlank(message = "A senha não pode estar em branco")
     @Size(min = 6, message = "A senha deve ter no mínimo 6 caracteres")
     @Column(nullable = false)

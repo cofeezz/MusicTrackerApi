@@ -21,12 +21,23 @@ public class Artist {
     @Column(nullable = false)
     private Genre genre;
 
+    @Column(nullable = false)
+    private Long createdById;
+
     public Artist() {
     }
 
     public Artist(String name, Genre genre) {
         this.name = name;
         this.genre = genre;
+    }
+
+    public Long getCreatedById() {
+        return createdById;
+    }
+
+    public void setCreatedById(Long createdById) {
+        this.createdById = createdById;
     }
 
     public Long getId() {

@@ -8,6 +8,8 @@ import java.util.List;
 public record PlaylistResponse(
         Long id,
         String name,
+        Long ownerId,
+        String ownerUsername,
         List<TrackResponse> tracks
 ) {
 }
