@@ -4,7 +4,11 @@ import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.headers.Header;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.IntegerSchema;
+import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.ObjectSchema;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.parameters.HeaderParameter;
 import io.swagger.v3.oas.models.responses.ApiResponse;
@@ -102,12 +106,14 @@ public class OpenApi {
 
                                 ## Idempotência
 
-                                Todo `POST` aceita o cabeçalho opcional `X-Idempotency-Key`, com uma chave
+                                Todo `POST` exige o cabeçalho obrigatório `X-Idempotency-Key`, com uma chave
                                 única escolhida pelo cliente (ex: um UUID, até 100 caracteres). Ele evita que a
                                 mesma operação seja processada duas vezes por acidente, como um clique duplo
                                 ou uma nova tentativa automática do app após uma falha de rede.
 
-                                Como a API se comporta quando o cabeçalho é enviado:
+                                Como a API se comporta:
+
+                                - **Cabeçalho ausente ou vazio** — `400 Bad Request`: a chave é obrigatória em todo `POST`
 
                                 - **Chave nova** — a requisição é processada normalmente e a resposta de sucesso (2xx) fica guardada
 
@@ -117,9 +123,9 @@ public class OpenApi {
 
                                 - **Mesma chave enquanto a primeira ainda está sendo processada** — `409 Conflict`
 
-                                As chaves ficam guardadas por 24 horas e valem por cliente (IP). Respostas de erro
-                                não ficam guardadas: se a primeira tentativa falhou, o cliente pode corrigir e
-                                repetir com a mesma chave. Sem o cabeçalho, o `POST` funciona como sempre.
+                                As chaves ficam guardadas por 24 horas e valem por usuário autenticado (ou por IP, nas
+                                rotas abertas). Respostas de erro não ficam guardadas: se a primeira tentativa
+                                falhou, o cliente pode corrigir e repetir com a mesma chave.
 
                                 ## Versionamento
 
@@ -237,6 +243,7 @@ public class OpenApi {
             openApi.getPaths().values().forEach(pathItem ->
                     pathItem.readOperations().forEach(operation ->
                             operation.getResponses().addApiResponse("429", new ApiResponse()
+                                    .content(apiErrorContent())
                                     .description("Limite de requisições excedido (rate limit): o balde de " + capacity
                                             + " fichas esvaziou e recebe 1 ficha a cada " + Math.round(1 / refillPerSecond) + " segundos. "
                                             + "Aguarde o tempo informado em Retry-After antes de tentar de novo.")
@@ -264,13 +271,32 @@ public class OpenApi {
                 }
                 pathItem.getPost().addParametersItem(new HeaderParameter()
                         .name("X-Idempotency-Key")
-                        .required(false)
-                        .description("Chave única da operação (ex: um UUID, até 100 caracteres). Repetir o mesmo "
-                                + "POST com a mesma chave devolve a resposta original sem criar nada de novo.")
+                        .required(true)
+                        .description("OBRIGATÓRIO. Chave única da operação (ex: um UUID, até 100 caracteres). Use uma "
+                                + "chave nova a cada operação; repetir o mesmo POST com a mesma chave devolve a "
+                                + "resposta original sem criar nada de novo.")
                         .schema(new StringSchema()));
-                pathItem.getPost().getResponses().addApiResponse("409", new ApiResponse()
-                        .description("Já existe uma requisição em processamento com esta X-Idempotency-Key"));
+                ApiResponse badRequest = pathItem.getPost().getResponses().get("400");
+                String missingKey = "o cabeçalho X-Idempotency-Key está ausente, vazio ou tem mais de 100 caracteres";
+                if (badRequest == null) {
+                    pathItem.getPost().getResponses().addApiResponse("400", new ApiResponse()
+                            .content(apiErrorContent())
+                            .description("Requisição inválida: " + missingKey));
+                } else {
+                    badRequest.setDescription(badRequest.getDescription() + ". Também ocorre quando " + missingKey);
+                }
+                ApiResponse conflict = pathItem.getPost().getResponses().get("409");
+                String processing = "Já existe uma requisição em processamento com esta X-Idempotency-Key";
+                if (conflict == null) {
+                    pathItem.getPost().getResponses().addApiResponse("409", new ApiResponse()
+                            .content(apiErrorContent())
+                            .description(processing));
+                } else {
+                    conflict.setDescription(conflict.getDescription() + ". Também ocorre quando: "
+                            + processing.substring(0, 1).toLowerCase() + processing.substring(1));
+                }
                 pathItem.getPost().getResponses().addApiResponse("422", new ApiResponse()
+                        .content(apiErrorContent())
                         .description("A X-Idempotency-Key já foi usada em outra requisição (rota ou corpo diferentes)"));
             });
         };
@@ -287,9 +313,41 @@ public class OpenApi {
                         if (ProtectedRoutes.requiresKey(method.name(), path)) {
                             operation.addSecurityItem(new SecurityRequirement().addList("ApiKeyAuth"));
                             operation.getResponses().addApiResponse("401", new ApiResponse()
+                                    .content(apiErrorContent())
                                     .description("Chave de API ausente, inválida ou revogada"));
                         }
                     }));
         };
+    }
+
+    @Bean
+    public OpenApiCustomizer errorSchemaCustomizer() {
+        return openApi -> {
+            if (openApi.getComponents() == null) {
+                openApi.setComponents(new Components());
+            }
+            openApi.getComponents().addSchemas("APIError", new ObjectSchema()
+                    .description("Formato de todo erro devolvido pela API")
+                    .addProperty("timestamp", new StringSchema().format("date-time").example("2026-11-18T16:45:20"))
+                    .addProperty("status", new IntegerSchema().example(404))
+                    .addProperty("error", new StringSchema().example("NOT_FOUND"))
+                    .addProperty("message", new StringSchema().example("Usuário não encontrado com o ID: 1"))
+                    .addProperty("path", new StringSchema().example("/users/1")));
+            if (openApi.getPaths() == null) {
+                return;
+            }
+            openApi.getPaths().values().forEach(pathItem ->
+                    pathItem.readOperations().forEach(operation ->
+                            operation.getResponses().forEach((code, response) -> {
+                                if (code.startsWith("4") || code.startsWith("5")) {
+                                    response.setContent(apiErrorContent());
+                                }
+                            })));
+        };
+    }
+
+    private static Content apiErrorContent() {
+        Schema<?> reference = new Schema<>().$ref("#/components/schemas/APIError");
+        return new Content().addMediaType("application/json", new MediaType().schema(reference));
     }
 }

@@ -10,4 +10,8 @@ public interface ArtistRepository extends JpaRepository<Artist, Long> {
 
     // Consulta personalizada: artistas de um determinado gênero
     Page<Artist> findByGenre(Genre genre, Pageable pageable);
+
+    Page<Artist> findByNameContainingIgnoreCase(String name, Pageable pageable);
+
+    Page<Artist> findByGenreAndNameContainingIgnoreCase(Genre genre, String name, Pageable pageable);
 }

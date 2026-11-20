@@ -78,21 +78,26 @@ public class ArtistController {
 
     @GetMapping("/search")
     @Operation(
-            summary = "Buscar artistas por gênero",
-            description = "Consulta personalizada: retorna artistas que pertencem exatamente ao gênero "
-                    + "informado. O valor precisa bater com um dos nomes do enum Genre."
+            summary = "Buscar artistas por nome e/ou gênero",
+            description = "Consulta personalizada. 'name' retorna artistas cujo nome contém o texto "
+                    + "(sem diferenciar maiúsculas), e 'genre' retorna os do gênero exato (um dos valores do "
+                    + "enum Genre). Os dois filtros são opcionais e podem ser combinados; sem nenhum deles, "
+                    + "devolve todos os artistas. Use esta rota para achar o artista antes de cadastrar "
+                    + "uma faixa (POST /tracks exige o ID de um artista que já exista)."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso"),
-            @ApiResponse(responseCode = "400", description = "O parâmetro 'genre' não foi informado "
-                    + "ou não corresponde a nenhum valor do enum Genre")
+            @ApiResponse(responseCode = "400", description = "O parâmetro 'genre' não corresponde "
+                    + "a nenhum valor do enum Genre")
     })
     public PagedModel<EntityModel<ArtistResponse>> search(
             @Parameter(description = "Gênero musical (POP, ROCK, HIP_HOP, ELECTRONIC, INDIE, MPB, JAZZ, OTHER)",
                     example = "ROCK")
-            @RequestParam Genre genre,
+            @RequestParam(required = false) Genre genre,
+            @Parameter(description = "Parte do nome do artista (sem diferenciar maiúsculas)", example = "pho")
+            @RequestParam(required = false) String name,
             @ParameterObject Pageable pageable) {
-        Page<ArtistResponse> page = artistService.findByGenre(genre, pageable);
+        Page<ArtistResponse> page = artistService.search(genre, name, pageable);
         return pagedAssembler.toModel(page, this::toModel);
     }
 

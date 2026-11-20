@@ -45,8 +45,19 @@ public class ArtistService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ArtistResponse> findByGenre(Genre genre, Pageable pageable) {
-        return artistRepository.findByGenre(genre, pageable).map(this::toResponse);
+    public Page<ArtistResponse> search(Genre genre, String name, Pageable pageable) {
+        boolean hasName = name != null && !name.isBlank();
+        Page<Artist> page;
+        if (genre != null && hasName) {
+            page = artistRepository.findByGenreAndNameContainingIgnoreCase(genre, name.trim(), pageable);
+        } else if (genre != null) {
+            page = artistRepository.findByGenre(genre, pageable);
+        } else if (hasName) {
+            page = artistRepository.findByNameContainingIgnoreCase(name.trim(), pageable);
+        } else {
+            page = artistRepository.findAll(pageable);
+        }
+        return page.map(this::toResponse);
     }
 
     public ArtistResponse update(Long id, ArtistRequest request) {
