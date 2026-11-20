@@ -51,7 +51,7 @@ Abra o [Swagger](https://musictrackerapi-hgj1.onrender.com/swagger-ui/index.html
 6. Veja o resultado em `GET /stats/top-tracks`, informando o seu `userId`.
 7. Compare com a comunidade em `GET /stats/community/comparison` (suas faixas) e `GET /stats/community/top-tracks` (top global). Só aparecem porcentagens.
 
-Deixe o campo `X-Idempotency-Key` vazio, a menos que queira testar a proteção contra pedidos repetidos (explicada abaixo).
+Em todo `POST` o campo `X-Idempotency-Key` é **obrigatório**: digite qualquer texto único (por exemplo `teste-001`) e troque o valor a cada novo pedido. Repetir o mesmo valor no mesmo pedido devolve a resposta anterior sem criar nada novo (explicado abaixo).
 
 ## Rodar na sua máquina
 
@@ -156,7 +156,7 @@ Listagens são paginadas. IDs são numéricos; enviar um valor não numérico de
 | POST | `/artists` | Cria um artista |
 | GET | `/artists/{id}` | Busca artista por ID |
 | GET | `/artists` | Lista artistas |
-| GET | `/artists/search?genre=` | Busca artistas por gênero |
+| GET | `/artists/search?name=&genre=` | Busca artistas por nome e/ou gênero (filtros opcionais) |
 | PUT | `/artists/{id}` | Atualiza artista (só quem cadastrou) |
 | DELETE | `/artists/{id}` | Remove artista (só quem cadastrou, e se não tiver faixas) |
 
@@ -167,7 +167,7 @@ Listagens são paginadas. IDs são numéricos; enviar um valor não numérico de
 
 | Método | Rota | Descrição |
 |---|---|---|
-| POST | `/tracks` | Cria uma faixa (ligada a um artista) |
+| POST | `/tracks` | Cria uma faixa (o artista precisa já existir: `artistId`) |
 | GET | `/tracks/{id}` | Busca faixa por ID |
 | GET | `/tracks` | Lista faixas |
 | GET | `/tracks/search?name=` | Busca faixas por nome |
@@ -249,10 +249,11 @@ Toda resposta traz `X-RateLimit-Limit` e `X-RateLimit-Remaining`. Quando o balde
 
 ### Proteção contra pedidos repetidos (idempotência)
 
-Todo `POST` aceita o cabeçalho opcional `X-Idempotency-Key`, uma chave única escolhida pelo cliente (por exemplo, um UUID). Ela evita que o mesmo pedido seja processado duas vezes por acidente, como num clique duplo ou numa nova tentativa depois de uma falha de rede.
+Todo `POST` exige o cabeçalho `X-Idempotency-Key`, uma chave única escolhida pelo cliente (por exemplo, um UUID). Ela evita que o mesmo pedido seja processado duas vezes por acidente, como num clique duplo ou numa nova tentativa depois de uma falha de rede.
 
 | Situação | Resultado |
 |---|---|
+| Cabeçalho ausente ou vazio | `400 Bad Request` |
 | Chave nova | Processa normalmente e guarda a resposta de sucesso |
 | Mesma chave e mesmo pedido | Devolve a mesma resposta, sem criar nada novo, com `Idempotent-Replayed: true` |
 | Mesma chave, rota ou corpo diferentes | `422 Unprocessable Entity` |
@@ -280,7 +281,7 @@ Todo erro vem no mesmo formato:
 
 | Código | Quando acontece |
 |---|---|
-| 400 | Entrada inválida: campo faltando, tipo errado, JSON mal formado, data inválida, parâmetro fora do limite ou versão desconhecida |
+| 400 | Entrada inválida: `X-Idempotency-Key` ausente em um `POST`, campo faltando, tipo errado, JSON mal formado, data inválida, parâmetro fora do limite ou versão desconhecida |
 | 401 | Chave ausente, inválida ou revogada; usuário ou senha errados |
 | 403 | A chave é válida, mas o recurso é de outro usuário |
 | 404 | O ID é válido, mas não existe, ou a rota não existe |
