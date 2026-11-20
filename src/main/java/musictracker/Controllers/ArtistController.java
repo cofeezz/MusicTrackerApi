@@ -25,7 +25,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
 @RestController
 @RequestMapping("/artists")
-@Tag(name = "Artistas", description = "Artistas/bandas, com o enum Genre")
+@Tag(name = "Artistas", description = "Artistas/bandas, com o enum Genre. Catálogo compartilhado: todos veem, só quem cadastrou altera ou remove.")
 public class ArtistController {
 
     private final ArtistService artistService;
@@ -68,7 +68,7 @@ public class ArtistController {
     @GetMapping
     @Operation(
             summary = "Listar artistas",
-            description = "Lista paginada de artistas (no máximo 2 por página)."
+            description = "Lista paginada de artistas (no máximo 10 por página)."
     )
     @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso")
     public PagedModel<EntityModel<ArtistResponse>> getAll(@ParameterObject Pageable pageable) {
@@ -78,29 +78,35 @@ public class ArtistController {
 
     @GetMapping("/search")
     @Operation(
-            summary = "Buscar artistas por gênero",
-            description = "Consulta personalizada: retorna artistas que pertencem exatamente ao gênero "
-                    + "informado. O valor precisa bater com um dos nomes do enum Genre."
+            summary = "Buscar artistas por nome e/ou gênero",
+            description = "Consulta personalizada. 'name' retorna artistas cujo nome contém o texto "
+                    + "(sem diferenciar maiúsculas), e 'genre' retorna os do gênero exato (um dos valores do "
+                    + "enum Genre). Os dois filtros são opcionais e podem ser combinados; sem nenhum deles, "
+                    + "devolve todos os artistas. Use esta rota para achar o artista antes de cadastrar "
+                    + "uma faixa (POST /tracks exige o ID de um artista que já exista)."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso"),
-            @ApiResponse(responseCode = "400", description = "O parâmetro 'genre' não foi informado "
-                    + "ou não corresponde a nenhum valor do enum Genre")
+            @ApiResponse(responseCode = "400", description = "O parâmetro 'genre' não corresponde "
+                    + "a nenhum valor do enum Genre")
     })
     public PagedModel<EntityModel<ArtistResponse>> search(
             @Parameter(description = "Gênero musical (POP, ROCK, HIP_HOP, ELECTRONIC, INDIE, MPB, JAZZ, OTHER)",
                     example = "ROCK")
-            @RequestParam Genre genre,
+            @RequestParam(required = false) Genre genre,
+            @Parameter(description = "Parte do nome do artista (sem diferenciar maiúsculas)", example = "pho")
+            @RequestParam(required = false) String name,
             @ParameterObject Pageable pageable) {
-        Page<ArtistResponse> page = artistService.findByGenre(genre, pageable);
+        Page<ArtistResponse> page = artistService.search(genre, name, pageable);
         return pagedAssembler.toModel(page, this::toModel);
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Atualizar um artista")
+    @Operation(summary = "Atualizar um artista", description = "Só quem cadastrou o artista pode alterá-lo.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Artista atualizado"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos ou ID em formato incorreto"),
+            @ApiResponse(responseCode = "403", description = "O artista foi cadastrado por outro usuário"),
             @ApiResponse(responseCode = "404", description = "Não existe artista com esse ID")
     })
     public EntityModel<ArtistResponse> update(
@@ -110,10 +116,12 @@ public class ArtistController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Remover um artista")
+    @Operation(summary = "Remover um artista", description = "Só quem cadastrou o artista pode removê-lo, e apenas se ele não tiver faixas.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Artista removido"),
             @ApiResponse(responseCode = "400", description = "O ID informado não é um número válido"),
+            @ApiResponse(responseCode = "403", description = "O artista foi cadastrado por outro usuário"),
+            @ApiResponse(responseCode = "409", description = "O artista ainda possui faixas cadastradas"),
             @ApiResponse(responseCode = "404", description = "Não existe artista com esse ID")
     })
     public ResponseEntity<Void> delete(
