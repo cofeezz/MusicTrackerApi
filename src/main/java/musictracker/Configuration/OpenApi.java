@@ -123,9 +123,9 @@ public class OpenApi {
 
                                 - **Mesma chave enquanto a primeira ainda está sendo processada** — `409 Conflict`
 
-                                As chaves ficam guardadas por 24 horas e valem por usuário autenticado (ou por IP, nas
-                                rotas abertas). Respostas de erro não ficam guardadas: se a primeira tentativa
-                                falhou, o cliente pode corrigir e repetir com a mesma chave.
+                                As chaves ficam guardadas por 24 horas e valem por cliente (IP). Respostas de erro
+                                não ficam guardadas: se a primeira tentativa falhou, o cliente pode corrigir e
+                                repetir com a mesma chave. Sem o cabeçalho, o `POST` funciona como sempre.
 
                                 ## Versionamento
 
