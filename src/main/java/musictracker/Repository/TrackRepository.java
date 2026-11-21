@@ -9,4 +9,8 @@ public interface TrackRepository extends JpaRepository<Track, Long> {
 
     // Consulta personalizada: busca faixas pelo nome (parcial, case-insensitive)
     Page<Track> findByNameContainingIgnoreCase(String name, Pageable pageable);
+
+    boolean existsByArtistId(Long artistId);
+
+    boolean existsByNameIgnoreCaseAndArtistId(String name, Long artistId);
 }

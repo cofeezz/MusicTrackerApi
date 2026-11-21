@@ -10,6 +10,9 @@ public record ApiKeyCreatedResponse(
         @Schema(description = "ID da chave", example = "1")
         Long id,
 
+        @Schema(description = "ID do usuário dono da chave (use-o em userId nas escutas e nos rankings)", example = "1")
+        Long userId,
+
         @Schema(description = "Nome dado à chave", example = "app-celular")
         String name,
 

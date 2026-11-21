@@ -9,4 +9,8 @@ public interface PlaylistRepository extends JpaRepository<Playlist, Long> {
 
     // Consulta personalizada: busca playlists pelo nome (parcial, case-insensitive)
     Page<Playlist> findByNameContainingIgnoreCase(String name, Pageable pageable);
+
+    boolean existsByTracksId(Long trackId);
+
+    void deleteByOwnerId(Long ownerId);
 }

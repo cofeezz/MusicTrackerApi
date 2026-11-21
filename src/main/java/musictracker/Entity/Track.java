@@ -22,12 +22,23 @@ public class Track {
     @JoinColumn(name = "artist_id", nullable = false)
     private Artist artist;
 
+    @Column(nullable = false)
+    private Long createdById;
+
     public Track() {
     }
 
     public Track(String name, Artist artist) {
         this.name = name;
         this.artist = artist;
+    }
+
+    public Long getCreatedById() {
+        return createdById;
+    }
+
+    public void setCreatedById(Long createdById) {
+        this.createdById = createdById;
     }
 
     public Long getId() {

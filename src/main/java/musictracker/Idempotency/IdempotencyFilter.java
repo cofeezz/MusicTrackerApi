@@ -8,6 +8,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import musictracker.Exception.FilterErrorWriter;
+import musictracker.RateLimit.ClientIp;
+import musictracker.Security.AuthenticatedUser;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -34,13 +36,13 @@ import java.util.concurrent.atomic.AtomicLong;
 // por rede instável), a API não processa de novo — devolve a resposta que já
 // tinha dado da primeira vez.
 //
-// Fluxo para um POST que traz X-Idempotency-Key:
+// O cabeçalho é OBRIGATÓRIO em todo POST: sem ele a API responde 400.
+// Fluxo para um POST com X-Idempotency-Key:
 //   1. chave nova                      -> processa normalmente e guarda a resposta (se for 2xx)
 //   2. chave repetida, mesmo corpo     -> devolve a resposta guardada (+ Idempotent-Replayed: true)
 //   3. chave repetida, corpo/rota diferente -> 422 (a chave já foi usada para outra coisa)
 //   4. chave repetida enquanto a 1ª ainda está processando -> 409
 //
-// Sem o cabeçalho o POST funciona como sempre (a chave é opcional).
 // Só respostas 2xx ficam guardadas: se deu erro (400, 404, 500...) nada foi
 // criado, então o cliente pode corrigir e tentar de novo com a mesma chave.
 //
@@ -83,20 +85,22 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
     private final boolean enabled;
     private final long ttlNanos;
+    private final boolean trustForwardedFor;
 
     public IdempotencyFilter(
             @Value("${idempotency.enabled:true}") boolean enabled,
-            @Value("${idempotency.ttl-hours:24}") long ttlHours) {
+            @Value("${idempotency.ttl-hours:24}") long ttlHours,
+            @Value("${ratelimit.trust-forwarded-for:false}") boolean trustForwardedFor) {
         this.enabled = enabled;
         this.ttlNanos = TimeUnit.HOURS.toNanos(ttlHours);
+        this.trustForwardedFor = trustForwardedFor;
     }
 
-    // Só POST com o cabeçalho presente entra na lógica de idempotência
+    // Todo POST passa pela lógica de idempotência (o cabeçalho é obrigatório)
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         return !enabled
-                || !"POST".equalsIgnoreCase(request.getMethod())
-                || request.getHeader(HEADER) == null;
+                || !"POST".equalsIgnoreCase(request.getMethod());
     }
 
     @Override
@@ -105,8 +109,14 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
         removeExpiredIfDue();
 
-        String key = request.getHeader(HEADER).trim();
-        if (key.isEmpty() || key.length() > MAX_KEY_LENGTH) {
+        String header = request.getHeader(HEADER);
+        if (header == null || header.isBlank()) {
+            FilterErrorWriter.write(request, response, HttpStatus.BAD_REQUEST,
+                    "O cabeçalho " + HEADER + " é obrigatório em todo POST. Envie uma chave única por operação (ex: um UUID).");
+            return;
+        }
+        String key = header.trim();
+        if (key.length() > MAX_KEY_LENGTH) {
             FilterErrorWriter.write(request, response, HttpStatus.BAD_REQUEST,
                     "O cabeçalho " + HEADER + " deve ter entre 1 e " + MAX_KEY_LENGTH + " caracteres.");
             return;
@@ -116,8 +126,9 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         byte[] body = request.getInputStream().readAllBytes();
         String fingerprint = fingerprint(request.getRequestURI(), body);
 
-        // A chave é por cliente (IP + chave): dois clientes podem usar a mesma chave
-        String scopedKey = request.getRemoteAddr() + "|" + key;
+        Object userId = request.getAttribute(AuthenticatedUser.ATTRIBUTE);
+        String owner = userId != null ? "user-" + userId : ClientIp.of(request, trustForwardedFor);
+        String scopedKey = owner + "|" + key;
 
         Entry fresh = new Entry(fingerprint);
         Entry existing = entries.putIfAbsent(scopedKey, fresh);
