@@ -35,10 +35,10 @@ public class TrackService {
 
     public TrackResponse create(TrackRequest request) {
         Artist artist = artistService.getEntityOrThrow(request.artistId());
-        if (trackRepository.existsByNameIgnoreCaseAndArtistId(request.name(), artist.getId())) {
+        if (trackRepository.existsByNameIgnoreCaseAndArtistId(request.name().trim(), artist.getId())) {
             throw new ConflictException("Este artista já possui uma faixa com esse nome.");
         }
-        Track track = new Track(request.name(), artist);
+        Track track = new Track(request.name().trim(), artist);
         track.setCreatedById(AuthenticatedUser.requireId());
         return toResponse(trackRepository.save(track));
     }
@@ -67,13 +67,13 @@ public class TrackService {
         AuthenticatedUser.requireSame(track.getCreatedById(), "Você só pode alterar faixas que você cadastrou.");
 
         Artist artist = artistService.getEntityOrThrow(request.artistId());
-        boolean changed = !track.getName().equalsIgnoreCase(request.name())
+        boolean changed = !track.getName().equalsIgnoreCase(request.name().trim())
                 || !track.getArtist().getId().equals(artist.getId());
-        if (changed && trackRepository.existsByNameIgnoreCaseAndArtistId(request.name(), artist.getId())) {
+        if (changed && trackRepository.existsByNameIgnoreCaseAndArtistId(request.name().trim(), artist.getId())) {
             throw new ConflictException("Este artista já possui uma faixa com esse nome.");
         }
 
-        track.setName(request.name());
+        track.setName(request.name().trim());
         track.setArtist(artist);
 
         return toResponse(trackRepository.save(track));

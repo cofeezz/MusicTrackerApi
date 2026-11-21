@@ -27,7 +27,7 @@ public class ArtistService {
     }
 
     public ArtistResponse create(ArtistRequest request) {
-        Artist artist = new Artist(request.name(), request.genre());
+        Artist artist = new Artist(request.name().trim(), request.genre());
         artist.setCreatedById(AuthenticatedUser.requireId());
         return toResponse(artistRepository.save(artist));
     }
@@ -65,7 +65,7 @@ public class ArtistService {
                 .orElseThrow(() -> new ResourceNotFoundException("Artista não encontrado com o ID: " + id));
         AuthenticatedUser.requireSame(artist.getCreatedById(), "Você só pode alterar artistas que você cadastrou.");
 
-        artist.setName(request.name());
+        artist.setName(request.name().trim());
         artist.setGenre(request.genre());
 
         return toResponse(artistRepository.save(artist));
