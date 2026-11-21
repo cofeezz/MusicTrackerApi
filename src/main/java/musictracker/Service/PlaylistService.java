@@ -31,7 +31,7 @@ public class PlaylistService {
     }
 
     public PlaylistResponse create(PlaylistRequest request) {
-        Playlist playlist = new Playlist(request.name(), userService.getEntityOrThrow(AuthenticatedUser.requireId()));
+        Playlist playlist = new Playlist(request.name().trim(), userService.getEntityOrThrow(AuthenticatedUser.requireId()));
         return toResponse(playlistRepository.save(playlist));
     }
 
@@ -52,7 +52,7 @@ public class PlaylistService {
 
     public PlaylistResponse update(Long id, PlaylistRequest request) {
         Playlist playlist = getOwnedOrThrow(id);
-        playlist.setName(request.name());
+        playlist.setName(request.name().trim());
         return toResponse(playlistRepository.save(playlist));
     }
 

@@ -4,7 +4,11 @@ import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.headers.Header;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.IntegerSchema;
+import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.ObjectSchema;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.parameters.HeaderParameter;
 import io.swagger.v3.oas.models.responses.ApiResponse;
@@ -13,6 +17,7 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.tags.Tag;
 import musictracker.Security.ProtectedRoutes;
 import org.springdoc.core.customizers.OpenApiCustomizer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -22,7 +27,9 @@ import java.util.List;
 public class OpenApi {
 
     @Bean
-    public OpenAPI musicTrackerOpenApi() {
+    public OpenAPI musicTrackerOpenApi(
+            @Value("${ratelimit.capacity:20}") long capacity,
+            @Value("${ratelimit.refill-per-second:0.2}") double refillPerSecond) {
         return new OpenAPI()
                 .info(new Info()
                         .title("Music Tracker API")
@@ -53,34 +60,60 @@ public class OpenApi {
 
                                 - **Playlists:** qualquer um vê, mas só o dono (quem a criou) pode alterá-la; outro usuário recebe `403 Forbidden`
 
-                                - **Dados pessoais:** conta, perfil e escutas só podem ser alterados (e escutas, vistas) pelo próprio dono da chave; outro usuário recebe `403 Forbidden`
+                                - **Artistas e faixas:** qualquer um vê, mas só quem cadastrou pode alterar ou remover (`403`); um artista com faixas, ou uma faixa com escutas ou em playlists, não pode ser removido (`409`); o mesmo artista não pode ter duas faixas com o mesmo nome (`409`)
+
+                                - **Dados pessoais (privados):** conta (inclusive o e-mail), perfil, escutas e rankings só podem ser vistos e alterados pelo próprio dono da chave; outro usuário recebe `403 Forbidden` (detalhes na seção *Privacidade e uso dos seus dados*)
 
                                 Chave ausente, inválida ou revogada resulta em `401 Unauthorized`.
 
+                                ## Privacidade e uso dos seus dados
+
+                                **Só você vê (privado):**
+
+                                - o seu **e-mail** e a sua senha (a senha nunca é devolvida e fica guardada só como hash)
+
+                                - as suas **escutas** e o seu **ranking pessoal**: `/listens`, `/stats/top-tracks` e `/stats/top-tracks/monthly`
+
+                                - o seu **perfil** (`/profiles`) e as suas **chaves de API** (`/api-keys`)
+
+                                Quem tentar acessar esses dados de outra pessoa recebe `403 Forbidden`. **Não existe lista pública de usuários:** `GET /users` e `GET /users/search` devolvem apenas a sua própria conta, então o e-mail de ninguém é exposto.
+
+                                **Aviso importante: comparação com a comunidade.** Ao criar a conta e usar a API, você concorda que as suas escutas poderão ser usadas, de forma **agregada e anônima**, para comparar o seu ranking com o da comunidade, como o Spotify faz ao mostrar "você está entre os 5% que mais ouvem esta música". Isso só aparece como **porcentagens e contagens**, em `GET /stats/community/comparison` e `GET /stats/community/top-tracks`. **Nunca** é mostrado nome, e-mail, ID ou escuta individual de outra pessoa. Observação: com poucos usuários cadastrados, uma porcentagem é mais fácil de associar a alguém (por exemplo, com 2 usuários, 50% já indica que a outra pessoa ouviu a faixa).
+
+                                **Público (qualquer um vê):** o catálogo de artistas e faixas (nome e gênero) e as playlists, que mostram o **nome de usuário** do dono (nunca o e-mail).
+
+                                **Apagar a conta:** `DELETE /users/{id}` apaga a conta, as chaves de API, o perfil, as escutas e as playlists do usuário. Os artistas e as faixas que ele cadastrou continuam no catálogo.
+
+
                                 ## Rate limit
 
-                                Cada IP tem um "balde de fichas" (algoritmo *token bucket*): cada requisição
-                                gasta 1 ficha e o balde recebe fichas novas continuamente. Isso permite uma
-                                rajada curta, mas limita a média de requisições por segundo.
+                                Cada cliente (identificado pelo IP) tem um "balde de fichas" (algoritmo *token bucket*):
+                                cada requisição gasta 1 ficha.
+
+                                - **Limite:** o balde comporta **{{CAPACITY}} fichas**, ou seja, até {{CAPACITY}} requisições em rajada
+
+                                - **Reposição:** o balde recebe **1 ficha a cada {{SECONDS}} segundos**; depois da rajada, o ritmo sustentado é de 1 requisição a cada {{SECONDS}} segundos
+
+                                - **Quando volta:** com o balde vazio, a API responde **`429 Too Many Requests`** (formato `APIError`) com o cabeçalho `Retry-After`, que diz em quantos segundos a próxima requisição será aceita
 
                                 Toda resposta traz os cabeçalhos:
 
-                                - `X-RateLimit-Limit` — tamanho do balde (rajada máxima)
+                                - `X-RateLimit-Limit` — tamanho do balde ({{CAPACITY}})
 
                                 - `X-RateLimit-Remaining` — fichas que ainda restam
 
-                                Quando o balde esvazia, a API responde **`429 Too Many Requests`** (no mesmo
-                                formato `APIError`) com o cabeçalho `Retry-After`, que informa em quantos
-                                segundos o cliente pode tentar de novo. A documentação (Swagger UI) não conta no limite.
+                                A documentação (Swagger UI) não conta no limite.
 
                                 ## Idempotência
 
-                                Todo `POST` aceita o cabeçalho opcional `X-Idempotency-Key`, com uma chave
+                                Todo `POST` exige o cabeçalho obrigatório `X-Idempotency-Key`, com uma chave
                                 única escolhida pelo cliente (ex: um UUID, até 100 caracteres). Ele evita que a
                                 mesma operação seja processada duas vezes por acidente, como um clique duplo
                                 ou uma nova tentativa automática do app após uma falha de rede.
 
-                                Como a API se comporta quando o cabeçalho é enviado:
+                                Como a API se comporta:
+
+                                - **Cabeçalho ausente ou vazio** — `400 Bad Request`: a chave é obrigatória em todo `POST`
 
                                 - **Chave nova** — a requisição é processada normalmente e a resposta de sucesso (2xx) fica guardada
 
@@ -90,9 +123,9 @@ public class OpenApi {
 
                                 - **Mesma chave enquanto a primeira ainda está sendo processada** — `409 Conflict`
 
-                                As chaves ficam guardadas por 24 horas e valem por cliente (IP). Respostas de erro
-                                não ficam guardadas: se a primeira tentativa falhou, o cliente pode corrigir e
-                                repetir com a mesma chave. Sem o cabeçalho, o `POST` funciona como sempre.
+                                As chaves ficam guardadas por 24 horas e valem por usuário autenticado (ou por IP, nas
+                                rotas abertas). Respostas de erro não ficam guardadas: se a primeira tentativa
+                                falhou, o cliente pode corrigir e repetir com a mesma chave.
 
                                 ## Versionamento
 
@@ -141,7 +174,7 @@ public class OpenApi {
 
                                 ## Formato de erro
 
-                                Qualquer erro (400, 401, 403, 404, 409, 422, 429 ou 500) é devolvido sempre no mesmo formato — o schema
+                                Qualquer erro (400, 401, 403, 404, 405, 406, 409, 415, 422, 429 ou 500) é devolvido sempre no mesmo formato — o schema
                                 **`APIError`**:
 
                                 - `timestamp` — momento do erro
@@ -171,31 +204,38 @@ public class OpenApi {
 
                                 5. `POST /profiles` (com o `userId` do passo 1) — criar o perfil
 
-                                6. `POST /listens` (com `userId` e `trackId`) — registrar uma escuta
+                                6. `POST /listens` (com `userId` e `trackId`; o `userId` vem na resposta do passo 2) — registrar uma escuta
 
                                 7. `POST /playlists`, depois `POST /playlists/{id}/tracks/{trackId}` — montar uma playlist
 
-                                8. `GET /stats/top-tracks?userId=` e `GET /stats/top-tracks/monthly?userId=` — ver os rankings
-                                """))
+                                8. `GET /stats/top-tracks?userId=` e `GET /stats/top-tracks/monthly?userId=` — ver os seus rankings (privados)
+
+                                9. `GET /stats/community/comparison?userId=` e `GET /stats/community/top-tracks` — comparar com a comunidade (porcentagens anônimas)
+                                """
+                                .replace("{{CAPACITY}}", String.valueOf(capacity))
+                                .replace("{{SECONDS}}", String.valueOf(Math.round(1 / refillPerSecond)))))
                 .components(new Components().addSecuritySchemes("ApiKeyAuth", new SecurityScheme()
                         .type(SecurityScheme.Type.APIKEY)
                         .in(SecurityScheme.In.HEADER)
                         .name("X-API-Key")
                         .description("Chave gerada em POST /api-keys")))
                 .tags(List.of(
-                        new Tag().name("Chaves de API"),
-                        new Tag().name("Usuários"),
-                        new Tag().name("Perfis"),
-                        new Tag().name("Artistas"),
-                        new Tag().name("Faixas"),
-                        new Tag().name("Playlists"),
-                        new Tag().name("Escutas"),
-                        new Tag().name("Stats")
+                        new Tag().name("Chaves de API").description("Geração e gerenciamento das chaves usadas no cabeçalho X-API-Key. Só o dono vê as próprias chaves."),
+                        new Tag().name("Usuários").description("Contas de usuário (username, email, senha). **Privado:** o e-mail só é visível ao próprio dono; não existe lista pública de usuários. Ao criar a conta, você concorda que suas escutas poderão ser usadas de forma agregada e anônima para comparar rankings (veja a seção Privacidade)."),
+                        new Tag().name("Perfis").description("Perfis de usuário (bio, avatar) — relação One-to-One com User. **Privados:** só o dono vê e altera o próprio perfil."),
+                        new Tag().name("Artistas").description("Artistas/bandas, com o enum Genre. Catálogo compartilhado: todos veem, só quem cadastrou altera ou remove."),
+                        new Tag().name("Faixas").description("Faixas/músicas — relação Many-to-One com Artist. Catálogo compartilhado: todos veem, só quem cadastrou altera ou remove."),
+                        new Tag().name("Playlists").description("Playlists — relação Many-to-Many com Track. Todos veem (com o nome de usuário do dono); só o dono altera."),
+                        new Tag().name("Escutas").description("Registros de escuta **privados** — ligam User e Track. Só o dono vê e altera. Poderão ser usados, de forma agregada e anônima, na comparação com a comunidade."),
+                        new Tag().name("Stats").description("Rankings pessoais e **privados** de faixas mais ouvidas (histórico completo e mês corrente). Só o dono vê o próprio ranking."),
+                        new Tag().name("Comunidade").description("Estatísticas **agregadas e anônimas** (porcentagens e contagens, sem nomes, e-mails ou IDs de usuários) para comparar o seu ranking com o da comunidade, como no Spotify.")
                 ));
     }
 
     @Bean
-    public OpenApiCustomizer rateLimitResponseCustomizer() {
+    public OpenApiCustomizer rateLimitResponseCustomizer(
+            @Value("${ratelimit.capacity:20}") long capacity,
+            @Value("${ratelimit.refill-per-second:0.2}") double refillPerSecond) {
         return openApi -> {
             if (openApi.getPaths() == null) {
                 return;
@@ -203,8 +243,16 @@ public class OpenApi {
             openApi.getPaths().values().forEach(pathItem ->
                     pathItem.readOperations().forEach(operation ->
                             operation.getResponses().addApiResponse("429", new ApiResponse()
-                                    .description("Limite de requisições excedido (rate limit). "
+                                    .content(apiErrorContent())
+                                    .description("Limite de requisições excedido (rate limit): o balde de " + capacity
+                                            + " fichas esvaziou e recebe 1 ficha a cada " + Math.round(1 / refillPerSecond) + " segundos. "
                                             + "Aguarde o tempo informado em Retry-After antes de tentar de novo.")
+                                    .addHeaderObject("X-RateLimit-Limit", new Header()
+                                            .description("Tamanho do balde (requisições em rajada)")
+                                            .schema(new IntegerSchema()))
+                                    .addHeaderObject("X-RateLimit-Remaining", new Header()
+                                            .description("Fichas restantes (0 quando bloqueado)")
+                                            .schema(new IntegerSchema()))
                                     .addHeaderObject("Retry-After", new Header()
                                             .description("Segundos até a próxima requisição ser aceita")
                                             .schema(new IntegerSchema())))));
@@ -223,13 +271,32 @@ public class OpenApi {
                 }
                 pathItem.getPost().addParametersItem(new HeaderParameter()
                         .name("X-Idempotency-Key")
-                        .required(false)
-                        .description("Chave única da operação (ex: um UUID, até 100 caracteres). Repetir o mesmo "
-                                + "POST com a mesma chave devolve a resposta original sem criar nada de novo.")
+                        .required(true)
+                        .description("OBRIGATÓRIO. Chave única da operação (ex: um UUID, até 100 caracteres). Use uma "
+                                + "chave nova a cada operação; repetir o mesmo POST com a mesma chave devolve a "
+                                + "resposta original sem criar nada de novo.")
                         .schema(new StringSchema()));
-                pathItem.getPost().getResponses().addApiResponse("409", new ApiResponse()
-                        .description("Já existe uma requisição em processamento com esta X-Idempotency-Key"));
+                ApiResponse badRequest = pathItem.getPost().getResponses().get("400");
+                String missingKey = "o cabeçalho X-Idempotency-Key está ausente, vazio ou tem mais de 100 caracteres";
+                if (badRequest == null) {
+                    pathItem.getPost().getResponses().addApiResponse("400", new ApiResponse()
+                            .content(apiErrorContent())
+                            .description("Requisição inválida: " + missingKey));
+                } else {
+                    badRequest.setDescription(badRequest.getDescription() + ". Também ocorre quando " + missingKey);
+                }
+                ApiResponse conflict = pathItem.getPost().getResponses().get("409");
+                String processing = "Já existe uma requisição em processamento com esta X-Idempotency-Key";
+                if (conflict == null) {
+                    pathItem.getPost().getResponses().addApiResponse("409", new ApiResponse()
+                            .content(apiErrorContent())
+                            .description(processing));
+                } else {
+                    conflict.setDescription(conflict.getDescription() + ". Também ocorre quando: "
+                            + processing.substring(0, 1).toLowerCase() + processing.substring(1));
+                }
                 pathItem.getPost().getResponses().addApiResponse("422", new ApiResponse()
+                        .content(apiErrorContent())
                         .description("A X-Idempotency-Key já foi usada em outra requisição (rota ou corpo diferentes)"));
             });
         };
@@ -246,9 +313,41 @@ public class OpenApi {
                         if (ProtectedRoutes.requiresKey(method.name(), path)) {
                             operation.addSecurityItem(new SecurityRequirement().addList("ApiKeyAuth"));
                             operation.getResponses().addApiResponse("401", new ApiResponse()
+                                    .content(apiErrorContent())
                                     .description("Chave de API ausente, inválida ou revogada"));
                         }
                     }));
         };
+    }
+
+    @Bean
+    public OpenApiCustomizer errorSchemaCustomizer() {
+        return openApi -> {
+            if (openApi.getComponents() == null) {
+                openApi.setComponents(new Components());
+            }
+            openApi.getComponents().addSchemas("APIError", new ObjectSchema()
+                    .description("Formato de todo erro devolvido pela API")
+                    .addProperty("timestamp", new StringSchema().format("date-time").example("2026-11-18T16:45:20"))
+                    .addProperty("status", new IntegerSchema().example(404))
+                    .addProperty("error", new StringSchema().example("NOT_FOUND"))
+                    .addProperty("message", new StringSchema().example("Usuário não encontrado com o ID: 1"))
+                    .addProperty("path", new StringSchema().example("/users/1")));
+            if (openApi.getPaths() == null) {
+                return;
+            }
+            openApi.getPaths().values().forEach(pathItem ->
+                    pathItem.readOperations().forEach(operation ->
+                            operation.getResponses().forEach((code, response) -> {
+                                if (code.startsWith("4") || code.startsWith("5")) {
+                                    response.setContent(apiErrorContent());
+                                }
+                            })));
+        };
+    }
+
+    private static Content apiErrorContent() {
+        Schema<?> reference = new Schema<>().$ref("#/components/schemas/APIError");
+        return new Content().addMediaType("application/json", new MediaType().schema(reference));
     }
 }
