@@ -36,7 +36,9 @@ import java.util.concurrent.atomic.AtomicLong;
 // por rede instável), a API não processa de novo — devolve a resposta que já
 // tinha dado da primeira vez.
 //
-// O cabeçalho é OBRIGATÓRIO em todo POST: sem ele a API responde 400.
+// O cabeçalho é OBRIGATÓRIO nos POSTs, exceto em POST /users e POST /api-keys
+// (rotas de entrada, usadas antes de existir login): lá ele é opcional, mas se for
+// enviado é respeitado. Sem o cabeçalho onde ele é obrigatório, a API responde 400.
 // Fluxo para um POST com X-Idempotency-Key:
 //   1. chave nova                      -> processa normalmente e guarda a resposta (se for 2xx)
 //   2. chave repetida, mesmo corpo     -> devolve a resposta guardada (+ Idempotent-Replayed: true)
@@ -96,11 +98,16 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         this.trustForwardedFor = trustForwardedFor;
     }
 
-    // Todo POST passa pela lógica de idempotência (o cabeçalho é obrigatório)
+    // Todo POST passa pela lógica de idempotência; só as rotas de entrada podem ficar sem o cabeçalho
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         return !enabled
-                || !"POST".equalsIgnoreCase(request.getMethod());
+                || !"POST".equalsIgnoreCase(request.getMethod())
+                || (isEntryRoute(request.getServletPath()) && request.getHeader(HEADER) == null);
+    }
+
+    public static boolean isEntryRoute(String path) {
+        return "/users".equals(path) || "/api-keys".equals(path);
     }
 
     @Override
@@ -112,7 +119,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         String header = request.getHeader(HEADER);
         if (header == null || header.isBlank()) {
             FilterErrorWriter.write(request, response, HttpStatus.BAD_REQUEST,
-                    "O cabeçalho " + HEADER + " é obrigatório em todo POST. Envie uma chave única por operação (ex: um UUID).");
+                    "O cabeçalho " + HEADER + " é obrigatório neste POST. Envie uma chave única por operação (ex: um UUID).");
             return;
         }
         String key = header.trim();
