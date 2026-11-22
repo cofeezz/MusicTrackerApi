@@ -15,6 +15,7 @@ import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.tags.Tag;
+import musictracker.Idempotency.IdempotencyFilter;
 import musictracker.Security.ProtectedRoutes;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.beans.factory.annotation.Value;
@@ -106,14 +107,16 @@ public class OpenApi {
 
                                 ## Idempotência
 
-                                Todo `POST` exige o cabeçalho obrigatório `X-Idempotency-Key`, com uma chave
+                                Todo `POST` exige o cabeçalho obrigatório `X-Idempotency-Key`, exceto `POST /users` e `POST /api-keys` (rotas de entrada, usadas antes de ter login), onde ele é opcional. A chave
                                 única escolhida pelo cliente (ex: um UUID, até 100 caracteres). Ele evita que a
                                 mesma operação seja processada duas vezes por acidente, como um clique duplo
                                 ou uma nova tentativa automática do app após uma falha de rede.
 
                                 Como a API se comporta:
 
-                                - **Cabeçalho ausente ou vazio** — `400 Bad Request`: a chave é obrigatória em todo `POST`
+                                - **Cabeçalho ausente ou vazio** — `400 Bad Request` (nas rotas em que ele é obrigatório)
+
+                                - **De onde vem a chave?** O servidor não entrega: quem cria é o cliente. Use qualquer texto único por operação, como um UUID (no console do navegador: `crypto.randomUUID()`)
 
                                 - **Chave nova** — a requisição é processada normalmente e a resposta de sucesso (2xx) fica guardada
 
@@ -265,19 +268,23 @@ public class OpenApi {
             if (openApi.getPaths() == null) {
                 return;
             }
-            openApi.getPaths().values().forEach(pathItem -> {
+            openApi.getPaths().forEach((path, pathItem) -> {
                 if (pathItem.getPost() == null) {
                     return;
                 }
+                boolean optional = IdempotencyFilter.isEntryRoute(path);
                 pathItem.getPost().addParametersItem(new HeaderParameter()
                         .name("X-Idempotency-Key")
-                        .required(true)
-                        .description("OBRIGATÓRIO. Chave única da operação (ex: um UUID, até 100 caracteres). Use uma "
+                        .required(!optional)
+                        .description((optional ? "OPCIONAL nesta rota (ainda não há login). " : "OBRIGATÓRIO. ")
+                                + "Chave única da operação (ex: um UUID, até 100 caracteres). Use uma "
                                 + "chave nova a cada operação; repetir o mesmo POST com a mesma chave devolve a "
                                 + "resposta original sem criar nada de novo.")
                         .schema(new StringSchema()));
                 ApiResponse badRequest = pathItem.getPost().getResponses().get("400");
-                String missingKey = "o cabeçalho X-Idempotency-Key está ausente, vazio ou tem mais de 100 caracteres";
+                String missingKey = optional
+                        ? "o cabeçalho X-Idempotency-Key, se enviado, está vazio ou tem mais de 100 caracteres"
+                        : "o cabeçalho X-Idempotency-Key está ausente, vazio ou tem mais de 100 caracteres";
                 if (badRequest == null) {
                     pathItem.getPost().getResponses().addApiResponse("400", new ApiResponse()
                             .content(apiErrorContent())
