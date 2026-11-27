@@ -35,6 +35,7 @@ public class OpenApi {
                 .info(new Info()
                         .title("Music Tracker API")
                         .version("v1")
+                        .termsOfService("https://github.com/cofeezz/MusicTrackerApi#termos-de-uso")
                         .description("""
                                 API de rastreamento pessoal de músicas/artistas ouvidos, com ranking pessoal
                                 tipo "cápsula sonora" (mais ouvidas de sempre e do mês). Projeto acadêmico —
@@ -84,6 +85,25 @@ public class OpenApi {
                                 **Público (qualquer um vê):** o catálogo de artistas e faixas (nome e gênero) e as playlists, que mostram o **nome de usuário** do dono (nunca o e-mail).
 
                                 **Apagar a conta:** `DELETE /users/{id}` apaga a conta, as chaves de API, o perfil, as escutas e as playlists do usuário. Os artistas e as faixas que ele cadastrou continuam no catálogo.
+
+
+                                ## Termos de uso
+
+                                Ao usar esta API você concorda com os termos abaixo.
+
+                                - **Projeto acadêmico:** a API é um trabalho de faculdade, sem fins comerciais e sem garantia de disponibilidade ou de funcionamento contínuo
+
+                                - **Dados temporários:** tudo fica em memória e é apagado sempre que o servidor reinicia ou recebe uma nova versão. Não use dados reais ou sensíveis: prefira e-mail e senha de teste
+
+                                - **Sua conta e sua chave:** você é responsável pela sua chave de API. Ela aparece uma única vez; se vazar, revogue em `DELETE /api-keys/{id}`
+
+                                - **Uso aceitável:** respeite o limite de requisições, não tente acessar dados de outras pessoas e não cadastre conteúdo ofensivo, ilegal ou que não seja seu no catálogo
+
+                                - **Escutas e comunidade:** suas escutas podem ser usadas de forma agregada e anônima para comparar rankings, como descrito em *Privacidade e uso dos seus dados*
+
+                                - **Catálogo:** artistas e faixas são apenas nomes informados pelos usuários. A API não armazena nem distribui áudio, capas ou letras, e os nomes pertencem aos seus respectivos donos
+
+                                - **Mudanças:** estes termos e a API podem mudar a qualquer momento. Para dúvidas ou problemas, abra uma issue no repositório do projeto
 
 
                                 ## Rate limit
